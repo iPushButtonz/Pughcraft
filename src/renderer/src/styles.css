@@ -1,0 +1,146 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Grass-green brand on warm neutrals. */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.003 110);
+  --foreground: oklch(0.21 0.012 120);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.012 120);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.012 120);
+  --primary: oklch(0.56 0.15 142);
+  --primary-foreground: oklch(0.99 0.01 142);
+  --secondary: oklch(0.955 0.008 110);
+  --secondary-foreground: oklch(0.26 0.015 120);
+  --muted: oklch(0.955 0.008 110);
+  --muted-foreground: oklch(0.5 0.015 120);
+  --accent: oklch(0.94 0.02 142);
+  --accent-foreground: oklch(0.26 0.04 142);
+  --destructive: oklch(0.58 0.22 27);
+  --warning: oklch(0.75 0.15 75);
+  --success: oklch(0.6 0.15 150);
+  --border: oklch(0.91 0.008 110);
+  --input: oklch(0.87 0.01 110);
+  --ring: oklch(0.56 0.15 142);
+  --sidebar: oklch(0.965 0.006 110);
+  --sidebar-foreground: oklch(0.21 0.012 120);
+  --sidebar-accent: oklch(0.925 0.012 110);
+  --sidebar-accent-foreground: oklch(0.21 0.012 120);
+  --sidebar-border: oklch(0.91 0.008 110);
+}
+
+.dark {
+  --background: oklch(0.17 0.008 130);
+  --foreground: oklch(0.96 0.005 110);
+  --card: oklch(0.21 0.009 130);
+  --card-foreground: oklch(0.96 0.005 110);
+  --popover: oklch(0.21 0.009 130);
+  --popover-foreground: oklch(0.96 0.005 110);
+  --primary: oklch(0.68 0.16 142);
+  --primary-foreground: oklch(0.18 0.03 142);
+  --secondary: oklch(0.27 0.01 130);
+  --secondary-foreground: oklch(0.96 0.005 110);
+  --muted: oklch(0.27 0.01 130);
+  --muted-foreground: oklch(0.7 0.012 120);
+  --accent: oklch(0.3 0.04 142);
+  --accent-foreground: oklch(0.95 0.02 142);
+  --destructive: oklch(0.66 0.2 25);
+  --warning: oklch(0.8 0.14 80);
+  --success: oklch(0.7 0.15 150);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.68 0.16 142);
+  --sidebar: oklch(0.195 0.009 130);
+  --sidebar-foreground: oklch(0.96 0.005 110);
+  --sidebar-accent: oklch(0.27 0.012 130);
+  --sidebar-accent-foreground: oklch(0.96 0.005 110);
+  --sidebar-border: oklch(1 0 0 / 8%);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+}
+
+/* Sliding bar for progress whose total is unknown, so the UI never looks frozen. */
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@utility animate-indeterminate {
+  animation: indeterminate 1.3s ease-in-out infinite;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family:
+      'Segoe UI Variable', 'Segoe UI', system-ui, 'Noto Sans', Ubuntu, Cantarell, sans-serif;
+    user-select: none;
+  }
+  input,
+  textarea,
+  [data-selectable] {
+    user-select: text;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+  }
+}
