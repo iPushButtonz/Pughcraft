@@ -60,6 +60,10 @@ const api: PughcraftApi = {
     retry: (id) => invoke(IPC.networkRetry, id),
     fixFirewall: () => invoke(IPC.networkFixFirewall),
     doctor: (id) => invoke(IPC.networkDoctor, id),
+    useTunnel: (id) => invoke(IPC.networkUseTunnel, id),
+    useDirect: (id) => invoke(IPC.networkUseDirect, id),
+    playitStatus: () => invoke(IPC.networkPlayitStatus),
+    unlinkPlayit: () => invoke(IPC.networkUnlinkPlayit),
     onChanged: (listener) => subscribe(IPC.networkChanged, listener)
   }
 }

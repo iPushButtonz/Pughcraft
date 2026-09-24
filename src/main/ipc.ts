@@ -102,5 +102,9 @@ export function registerIpc({ settings, tasks, servers, network, mojang, appInfo
   handle(IPC.networkRetry, (id) => network.retry(str(id)))
   handle(IPC.networkFixFirewall, () => network.fixFirewall())
   handle(IPC.networkDoctor, (id) => network.doctor(str(id)))
+  handle(IPC.networkUseTunnel, (id) => network.useTunnel(str(id)))
+  handle(IPC.networkUseDirect, (id) => network.useDirect(str(id)))
+  handle(IPC.networkPlayitStatus, () => network.playitStatus())
+  handle(IPC.networkUnlinkPlayit, () => network.unlinkPlayit())
   network.on('changed', (update) => broadcast(IPC.networkChanged, update))
 }

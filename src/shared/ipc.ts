@@ -1,5 +1,5 @@
 import type { Settings, SettingsPatch } from './settings'
-import type { Audience, DoctorReport, ServerNetworkView } from './network'
+import type { Audience, DoctorReport, PlayitStatus, ServerNetworkView } from './network'
 import type { TaskSnapshot } from './tasks'
 import type {
   ConsoleLine,
@@ -79,6 +79,11 @@ export interface PughcraftApi {
     retry(id: string): Promise<void>
     fixFirewall(): Promise<'fixed' | 'cancelled' | 'failed'>
     doctor(id: string): Promise<DoctorReport>
+    /** Starts the one-click tunnel setup; returns the task id to follow. */
+    useTunnel(id: string): Promise<string>
+    useDirect(id: string): Promise<void>
+    playitStatus(): Promise<PlayitStatus>
+    unlinkPlayit(): Promise<void>
     onChanged(listener: (update: { id: string; view: ServerNetworkView }) => void): () => void
   }
 }
@@ -122,5 +127,9 @@ export const IPC = {
   networkRetry: 'network:retry',
   networkFixFirewall: 'network:fix-firewall',
   networkDoctor: 'network:doctor',
+  networkUseTunnel: 'network:use-tunnel',
+  networkUseDirect: 'network:use-direct',
+  networkPlayitStatus: 'network:playit-status',
+  networkUnlinkPlayit: 'network:unlink-playit',
   networkChanged: 'network:changed'
 } as const

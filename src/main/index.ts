@@ -26,6 +26,7 @@ import { JavaManager } from './core/java'
 import { MojangMeta } from './core/mojang'
 import { ServerManager } from './servers/manager'
 import { NetworkManager } from './net/network'
+import { PlayitManager } from './net/playit'
 
 configureAppPaths()
 
@@ -52,7 +53,12 @@ async function start(): Promise<void> {
   const servers = new ServerManager({ libraryRoot, settings, tasks, java, mojang })
   await servers.load()
   lifecycle.onShutdown('servers', () => servers.stopAll(), 90_000)
-  const network = new NetworkManager({ servers, settings, appPath: process.execPath })
+  const playit = new PlayitManager(
+    join(libraryRoot(), 'tools'),
+    join(dataRoot(), 'playit'),
+    logsDir()
+  )
+  const network = new NetworkManager({ servers, settings, tasks, playit, appPath: process.execPath })
   lifecycle.onShutdown('network', () => network.shutdown(), 15_000)
 
   // Keep the PC awake while any server runs, unless the user turned that off.

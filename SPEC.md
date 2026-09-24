@@ -144,7 +144,7 @@ The app walks the ladder automatically and explains each step:
 5. **VPN mesh:** Tailscale and ZeroTier. The app detects whether they're installed and running, shows the mesh IP and walks the user through setup. Friends install the same VPN. It can't be embedded, because both need their own accounts.
 
 ### 7.3 Firewall
-On a server's first start, the app explains, then shows **one admin prompt**. It adds a narrow allow rule (our Java only, the server's TCP port, all network profiles). It also removes the block rules Windows creates when someone clicks Cancel on the Windows firewall popup. On Linux, the same is done through ufw or firewalld via pkexec, if one is active.
+On a server's first start, the app explains, then shows **one admin prompt**. It adds a narrow allow rule (our Java only, the server's TCP port, all network profiles). It also removes the block rules Windows creates when someone clicks Cancel on the Windows firewall popup. The same prompt adds a UDP rule for Pughcraft itself, from the **local network only**, so the app can hear router replies (UPnP/NAT-PMP) on networks Windows marks as "Public". *(Owner-approved addition, 2026-09-23.)* On Linux, the same is done through ufw or firewalld via pkexec, if one is active.
 
 ### 7.4 Connection Doctor
 The Doctor diagnoses rather than guesses. It runs checks in order and stops at the first failure. The output is **one plain-English result plus a fix button**.

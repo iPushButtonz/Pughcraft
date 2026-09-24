@@ -9,12 +9,22 @@ export interface ServerNetworkConfig {
   method: InternetMethod
   /** Let the app ask the router to forward the port (UPnP / NAT-PMP). */
   autoForward: boolean
+  /** The playit.gg tunnel created for this server, reused so its address never changes. */
+  playitTunnelId: string | null
 }
 
 export const DEFAULT_NETWORK: ServerNetworkConfig = {
   audience: 'unset',
   method: 'direct',
-  autoForward: true
+  autoForward: true,
+  playitTunnelId: null
+}
+
+export interface PlayitStatus {
+  supported: boolean
+  linked: boolean
+  agentRunning: boolean
+  accountStatus: string | null
 }
 
 export type InternetState =
@@ -31,6 +41,7 @@ export type InternetProblem =
   | 'port-taken' // the router already forwards this port to another device
   | 'router-refused'
   | 'vpn' // a VPN carries all traffic
+  | 'tunnel-failed' // playit.gg couldn't set up the tunnel
 
 export interface FirewallView {
   state: 'ok' | 'blocked' | 'not-allowed' | 'off' | 'unknown'
@@ -53,7 +64,7 @@ export interface ServerNetworkView {
     problem: InternetProblem | null
     /** One plain-English sentence about the current state. */
     message: string
-    via: 'upnp' | 'natpmp' | null
+    via: 'upnp' | 'natpmp' | 'playit' | null
     router: { manufacturer: string | null; model: string | null } | null
   }
 }

@@ -143,11 +143,22 @@ export const t = {
     consentYesHint: 'Recommended',
     consentNotNow: 'Not now',
     consentNever: 'Never',
+    useTunnel: 'Use a tunnel (one click)',
+    useTunnelHint: 'Works on any internet connection. Uses playit.gg, a free third-party service.',
+    usingTunnel:
+      'Using a playit.gg tunnel (free third-party service). Friends use this address; on this PC, join with the “This PC” address instead.',
+    useDirect: 'Host directly from this PC instead',
+    tunnelTitle: 'Use a playit.gg tunnel?',
+    tunnelBody:
+      'playit.gg is a free third-party service that lets friends reach your server without any router changes. Pughcraft downloads playit’s official helper (about 5 MB) and runs it in the background only while your server is on.',
+    tunnelLinkOnce:
+      'The first time, playit.gg opens in your browser so you can approve linking this PC (a guest account is fine, no sign-up form). After that it’s one click.',
+    tunnelContinue: 'Continue',
     fix: {
       'start-server': 'Start the server',
       firewall: 'Allow through firewall',
       'retry-router': 'Try again',
-      tunnel: null,
+      tunnel: 'Use a tunnel (one click)',
       guide: null,
       vpn: null,
       'choose-audience': 'Choose who can join'

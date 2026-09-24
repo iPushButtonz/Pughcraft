@@ -32,11 +32,11 @@ export interface OutsideProbe {
   cachedUntil: string | null
 }
 
-/** Asks mcstatus.io to ping the server from the internet. */
-export async function probeFromInternet(host: string, port: number): Promise<OutsideProbe | null> {
+/** Asks mcstatus.io to ping the server from the internet. `address` is "host" or "host:port". */
+export async function probeFromInternet(address: string): Promise<OutsideProbe | null> {
   try {
     const res = await getJson<{ online: boolean; expires_at?: number }>(
-      `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(`${host}:${port}`)}`
+      `https://api.mcstatus.io/v2/status/java/${encodeURIComponent(address)}`
     )
     return {
       reachable: res.online === true,

@@ -109,14 +109,20 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
     return report(verdict('ok', 'Friends on your Wi-Fi can join', `They join at ${view.addresses.lan}. People elsewhere can't, which is what you chose.`))
   }
 
-  // 5. Router / internet path.
+  // 5. Router / tunnel path.
   const net = view.internet
+  const tunnel = config.method === 'playit'
+  const pathLabel = tunnel ? 'playit.gg tunnel set up' : 'Router set up'
   if (net.state === 'working') {
-    add({ id: 'router', label: 'Router set up', status: 'skip', detail: 'Still talking to the router.' })
-    return report(verdict('warning', 'Still setting up', 'The app is still talking to your router. Try again in a few seconds.'))
+    add({ id: 'router', label: pathLabel, status: 'skip', detail: net.message })
+    return report(verdict('warning', 'Still setting up', `${net.message} Try again in a few seconds.`))
+  }
+  if (net.state === 'needs-help' && tunnel) {
+    add({ id: 'router', label: pathLabel, status: 'fail', detail: net.message })
+    return report(verdict('problem', "The tunnel isn't working", net.message, 'tunnel'))
   }
   if (net.state === 'needs-help') {
-    add({ id: 'router', label: 'Router set up', status: 'fail', detail: net.message })
+    add({ id: 'router', label: pathLabel, status: 'fail', detail: net.message })
     const tunnelBody = ' A tunnel gets friends in without touching the router; it takes one click.'
     switch (net.problem) {
       case 'cgnat':
@@ -142,10 +148,10 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
     }
   }
   if (net.state !== 'ready' || !view.addresses.internet) {
-    add({ id: 'router', label: 'Router set up', status: 'skip', detail: net.message })
+    add({ id: 'router', label: pathLabel, status: 'skip', detail: net.message })
     return report(verdict('warning', 'Internet access is not set up yet', net.message, 'retry-router'))
   }
-  add({ id: 'router', label: 'Router set up', status: 'pass', detail: net.message })
+  add({ id: 'router', label: pathLabel, status: 'pass', detail: net.message })
 
   // 6. From the outside (opt-in).
   if (!input.allowOutside) {
@@ -158,9 +164,10 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
       )
     )
   }
-  const publicIp = await lookupPublicIp()
+  // A tunnel doesn't depend on the home connection's address, so test it directly.
+  const publicIp = tunnel ? null : await lookupPublicIp()
   const wan = input.routerWanIp
-  if (publicIp && wan && publicIp !== wan && classifyIpv4(wan) !== 'public') {
+  if (!tunnel && publicIp && wan && publicIp !== wan && classifyIpv4(wan) !== 'public') {
     add({ id: 'cgnat', label: 'Your own internet address', status: 'fail', detail: `Router says ${wan}, the internet sees ${publicIp}.` })
     return report(
       verdict(
@@ -172,10 +179,13 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
       true
     )
   }
-  add({ id: 'cgnat', label: 'Your own internet address', status: 'pass', detail: publicIp ? `The internet sees ${publicIp}.` : 'Could not look it up.' })
+  if (!tunnel) {
+    add({ id: 'cgnat', label: 'Your own internet address', status: 'pass', detail: publicIp ? `The internet sees ${publicIp}.` : 'Could not look it up.' })
+  }
 
   const host = publicIp ?? wan
-  const probe = host ? await probeFromInternet(host, port) : null
+  const target = tunnel ? view.addresses.internet : host ? `${host}:${port}` : null
+  const probe = target ? await probeFromInternet(target) : null
   if (!probe) {
     add({ id: 'outside', label: 'Reachable from the internet', status: 'warn', detail: "The outside test service didn't answer." })
     return report(
@@ -185,13 +195,21 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
   }
   if (!probe.reachable) {
     add({ id: 'outside', label: 'Reachable from the internet', status: 'fail', detail: 'mcstatus.io could not reach the server.' })
+    const cacheNote = ' (If you just fixed something, the test service remembers old results for about a minute.)'
     return report(
-      verdict(
-        'problem',
-        "The internet still can't reach your server",
-        'Your router accepted the setup, but a test from outside failed. Your internet provider may block incoming connections. (If you just fixed something, the test service remembers old results for about a minute.) A tunnel works around this.',
-        'tunnel'
-      ),
+      tunnel
+        ? verdict(
+            'problem',
+            "The tunnel isn't reaching your server",
+            'playit.gg is set up, but a test from outside could not get through. Check that the playit.gg tunnel is enabled on playit.gg.' + cacheNote,
+            'tunnel'
+          )
+        : verdict(
+            'problem',
+            "The internet still can't reach your server",
+            'Your router accepted the setup, but a test from outside failed. Your internet provider may block incoming connections.' + cacheNote + ' A tunnel works around this.',
+            'tunnel'
+          ),
       true
     )
   }

@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/CopyField'
 import { AudienceChooser } from '@/components/network/AudienceChooser'
 import { DoctorCard } from '@/components/network/DoctorCard'
+import { TunnelButton, useTunnelConfirm } from '@/components/network/TunnelButton'
+import { useIsAdvanced } from '@/stores/settings'
 import { useNetwork } from '@/stores/network'
 import { api } from '@/lib/api'
 import { errorMessage } from '@/lib/errors'
@@ -61,6 +63,8 @@ function AddressRow({
 export function NetworkPanel({ server }: { server: ServerSummary }) {
   const id = server.config.id
   const view = useServerNetwork(id)
+  const advanced = useIsAdvanced()
+  const tunnel = useTunnelConfirm(id)
   const [fixingFirewall, setFixingFirewall] = useState(false)
 
   if (!view) return null
@@ -83,6 +87,7 @@ export function NetworkPanel({ server }: { server: ServerSummary }) {
       if (fix === 'start-server') await api.servers.start(id)
       else if (fix === 'firewall') await fixFirewall()
       else if (fix === 'retry-router') await api.network.retry(id)
+      else if (fix === 'tunnel') await tunnel.ask()
     } catch (err) {
       toast.error(errorMessage(err))
     }
@@ -123,14 +128,30 @@ export function NetworkPanel({ server }: { server: ServerSummary }) {
                   {net.state === 'working' && <Loader2 className="size-3.5 animate-spin" />}
                   {net.state === 'ready' && <CheckCircle2 className="size-3.5 text-success" />}
                   {net.message}
-                  {net.state === 'needs-help' && (
-                    <Button size="xs" variant="outline" className="ml-2" onClick={() => void api.network.retry(id)}>
-                      {n.retry}
-                    </Button>
-                  )}
                 </p>
               }
             />
+            {net.state === 'needs-help' && (
+              <div className="flex flex-wrap items-center gap-2 pb-3 pl-[9.75rem]">
+                {view.config.method === 'direct' && <TunnelButton serverId={id} />}
+                <Button size="sm" variant="outline" onClick={() => void api.network.retry(id)}>
+                  {n.retry}
+                </Button>
+                {view.config.method === 'direct' && (
+                  <span className="w-full text-xs text-muted-foreground">{n.useTunnelHint}</span>
+                )}
+              </div>
+            )}
+            {view.config.method === 'playit' && net.state !== 'needs-help' && (
+              <div className="flex flex-wrap items-center gap-2 pb-3 pl-[9.75rem] text-xs text-muted-foreground">
+                {n.usingTunnel}
+                {advanced && (
+                  <Button size="xs" variant="ghost" onClick={() => void api.network.useDirect(id)}>
+                    {n.useDirect}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -162,6 +183,7 @@ export function NetworkPanel({ server }: { server: ServerSummary }) {
       )}
 
       <DoctorCard server={server} onFix={onFix} />
+      {tunnel.dialog}
     </div>
   )
 }

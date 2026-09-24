@@ -17,6 +17,8 @@ import { addMapping, deleteMapping, discoverIgd, externalIp, getMapping, UpnpErr
 import { natPmpExternalIp, natPmpMap } from './natpmp'
 import { checkFirewall, fixFirewall, type FixResult } from './firewall'
 import { runDoctor } from './doctor'
+import type { PlayitError, PlayitManager } from './playit'
+import type { TaskManager } from '../tasks'
 
 const log = logger('network')
 
@@ -30,11 +32,14 @@ interface NetState {
   internet: ServerNetworkView['internet']
   forward: Forward | null
   wanIp: string | null
+  /** What friends type in: "ip:port" for direct hosting, the tunnel's address for playit. */
+  address: string | null
   renew: NodeJS.Timeout | null
   queue: Promise<void>
 }
 
 const MESSAGES: Record<InternetProblem, (port: number, extra?: string) => string> = {
+  'tunnel-failed': (_p, extra) => `The playit.gg tunnel couldn't be set up${extra ? `: ${extra}` : '.'}`,
   'no-router-support': () =>
     "Your router didn't answer the automatic setup request. It may have UPnP turned off.",
   cgnat: () =>
@@ -53,7 +58,13 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
   private readonly firewallChecking = new Set<string>()
 
   constructor(
-    private readonly deps: { servers: ServerManager; settings: SettingsStore; appPath: string }
+    private readonly deps: {
+      servers: ServerManager
+      settings: SettingsStore
+      tasks: TaskManager
+      playit: PlayitManager
+      appPath: string
+    }
   ) {
     super()
     deps.servers.on('changed', (s) => this.onServerChanged(s))
@@ -70,6 +81,7 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
         internet: { state: 'off', problem: null, message: '', via: null, router: null },
         forward: null,
         wanIp: null,
+        address: null,
         renew: null,
         queue: Promise.resolve()
       }
@@ -116,7 +128,7 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
       addresses: {
         thisPc: joinAddress('localhost', port),
         lan: lan.address ? joinAddress(lan.address, port) : null,
-        internet: internet.state === 'ready' && s.wanIp ? joinAddress(s.wanIp, port) : null
+        internet: internet.state === 'ready' ? s.address : null
       },
       vpnActive: lan.vpnActive,
       firewall: refreshFirewall ? await this.firewall(id, true) : this.cachedFirewall(id),
@@ -194,7 +206,101 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
     void this.emitView(id)
   }
 
-  /** Asks the router (UPnP, then NAT-PMP) to forward the server's port to this PC. */
+  /**
+   * One click "use a tunnel": links playit.gg if needed (one-time browser approval),
+   * switches the server to the tunnel and brings it up if the server is running.
+   */
+  useTunnel(id: string): string {
+    const { id: taskId, result } = this.deps.tasks.run('Setting up the playit.gg tunnel', async (ctx) => {
+      if (!(await this.deps.playit.status()).linked) await this.deps.playit.link(ctx)
+      else await this.deps.playit.ensureAgent(ctx)
+      await this.deps.servers.setNetwork(id, { method: 'playit', audience: 'internet' })
+      const status = this.deps.servers.get(id).status
+      if (status === 'running' || status === 'starting') {
+        ctx.step('Creating your tunnel')
+        await this.openInternet(id)
+      } else void this.emitView(id)
+    })
+    result.catch(() => undefined)
+    return taskId
+  }
+
+  /** Back to hosting straight from this PC through the router. */
+  async useDirect(id: string): Promise<void> {
+    await this.deps.servers.setNetwork(id, { method: 'direct' })
+    const status = this.deps.servers.get(id).status
+    if (status === 'running' || status === 'starting') await this.openInternet(id)
+    else void this.emitView(id)
+  }
+
+  playitStatus(): ReturnType<PlayitManager['status']> {
+    return this.deps.playit.status()
+  }
+
+  async unlinkPlayit(): Promise<void> {
+    for (const s of this.deps.servers.list()) {
+      if (this.deps.servers.networkConfig(s.config.id).method === 'playit') {
+        await this.deps.servers.setNetwork(s.config.id, { method: 'direct', playitTunnelId: null })
+      }
+    }
+    await this.deps.playit.unlink()
+  }
+
+  private anyPlayitRunning(except?: string): boolean {
+    return this.deps.servers.list().some((s) => {
+      if (s.config.id === except) return false
+      const cfg = this.deps.servers.networkConfig(s.config.id)
+      return (
+        cfg.audience === 'internet' &&
+        cfg.method === 'playit' &&
+        (s.status === 'running' || s.status === 'starting')
+      )
+    })
+  }
+
+  private async openTunnel(id: string): Promise<void> {
+    const server = this.deps.servers.get(id)
+    const s = this.state(id)
+    this.setInternet(id, { state: 'working', problem: null, via: 'playit', message: 'Starting the playit.gg tunnel…' })
+    try {
+      await this.deps.playit.startAgent()
+      const cfg = this.deps.servers.networkConfig(id)
+      // Right after the helper starts, playit hasn't registered it yet and refuses new
+      // tunnels ("AgentVersionTooOld"); wait for it to connect instead of failing.
+      let result: { tunnelId: string; address: string } | null = null
+      for (let attempt = 0; !result; attempt++) {
+        try {
+          result = await this.deps.playit.ensureTunnel({
+            tunnelId: cfg.playitTunnelId,
+            name: server.config.name,
+            port: server.config.port
+          })
+        } catch (err) {
+          const code = (err as PlayitError).code
+          if (attempt >= 15 || (code !== 'AgentVersionTooOld' && code !== 'AgentNotFound')) throw err
+          await new Promise((r) => setTimeout(r, 2000))
+        }
+      }
+      const { tunnelId, address } = result
+      if (tunnelId !== cfg.playitTunnelId) await this.deps.servers.setNetwork(id, { playitTunnelId: tunnelId })
+      s.address = address
+      this.setInternet(id, {
+        state: 'ready',
+        problem: null,
+        via: 'playit',
+        message: 'Friends anywhere can join through your playit.gg tunnel (a free third-party service).'
+      })
+    } catch (err) {
+      log.warn('playit tunnel failed', err)
+      this.setInternet(id, {
+        state: 'needs-help',
+        problem: 'tunnel-failed',
+        message: MESSAGES['tunnel-failed'](server.config.port, (err as Error).message)
+      })
+    }
+  }
+
+  /** Makes the server reachable from the internet with the chosen method. */
   openInternet(id: string): Promise<void> {
     return this.serial(id, async () => {
       const server = this.deps.servers.get(id)
@@ -203,8 +309,9 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
       const fail = (problem: InternetProblem, extra?: string): void =>
         this.setInternet(id, { state: 'needs-help', problem, message: MESSAGES[problem](port, extra) })
 
-      this.setInternet(id, { state: 'working', problem: null, message: 'Asking your router to let friends in…' })
       await this.releaseForward(id)
+      if (this.deps.servers.networkConfig(id).method === 'playit') return this.openTunnel(id)
+      this.setInternet(id, { state: 'working', problem: null, message: 'Asking your router to let friends in…' })
       const lan = await lanInfo()
       if (lan.vpnActive) return fail('vpn', lan.vpnActive)
       if (!lan.address) return fail('router-refused', 'this PC is not on a home network')
@@ -229,6 +336,7 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
         }
         s.forward = { via: 'upnp', svc, port }
         s.wanIp = wan
+        s.address = wan ? joinAddress(wan, port) : null
         this.scheduleRenew(id)
         return this.setInternet(id, {
           state: 'ready',
@@ -248,6 +356,7 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
           await natPmpMap(gateway, port, LEASE_SECONDS)
           s.forward = { via: 'natpmp', gateway, port }
           s.wanIp = wan
+          s.address = joinAddress(wan, port)
           this.scheduleRenew(id)
           return this.setInternet(id, {
             state: 'ready',
@@ -288,19 +397,23 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
     }
   }
 
-  /** Removes the router forward when a server stops, so nothing stays open for no reason. */
+  /** Closes the router forward / tunnel when a server stops, so nothing stays open for no reason. */
   closeInternet(id: string): Promise<void> {
     return this.serial(id, async () => {
       await this.releaseForward(id)
       const s = this.state(id)
       s.wanIp = null
+      s.address = null
       s.internet = { ...s.internet, state: 'off', problem: null, message: '', via: null }
+      // The tunnel itself stays on playit.gg (same address next time); only the helper stops.
+      if (!this.anyPlayitRunning(id)) this.deps.playit.stopAgent()
       await this.emitView(id)
     })
   }
 
   async shutdown(): Promise<void> {
     await Promise.all([...this.states.keys()].map((id) => this.closeInternet(id)))
+    this.deps.playit.stopAgent()
   }
 
   async doctor(id: string): Promise<DoctorReport> {
