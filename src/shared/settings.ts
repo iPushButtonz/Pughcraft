@@ -10,6 +10,10 @@ export interface Settings {
   theme: ThemeSetting
   /** Set once the "still running in the tray" hint has been shown. */
   trayHintShown: boolean
+  /** When the user ticked "I agree to the Minecraft EULA" (ISO date), or null. */
+  eulaAcceptedAt: string | null
+  /** Keep the PC awake while any server is running. */
+  preventSleep: boolean
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'schema'>>
@@ -20,7 +24,9 @@ export const DEFAULT_SETTINGS: Settings = {
   closeBehavior: 'keep-running',
   startAtLogin: false,
   theme: 'system',
-  trayHintShown: false
+  trayHintShown: false,
+  eulaAcceptedAt: null,
+  preventSleep: true
 }
 
 const oneOf =
@@ -34,7 +40,9 @@ const validators: { [K in keyof SettingsPatch]-?: (v: unknown) => boolean } = {
   closeBehavior: oneOf('keep-running', 'stop-and-quit'),
   startAtLogin: isBool,
   theme: oneOf('system', 'light', 'dark'),
-  trayHintShown: isBool
+  trayHintShown: isBool,
+  eulaAcceptedAt: (v) => v === null || (typeof v === 'string' && !Number.isNaN(Date.parse(v))),
+  preventSleep: isBool
 }
 
 /** Keeps only known keys with valid values; anything else is dropped. */

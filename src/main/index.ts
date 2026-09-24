@@ -1,5 +1,15 @@
-import { app, BrowserWindow, nativeTheme, Notification, powerMonitor, type Tray } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  nativeTheme,
+  net,
+  Notification,
+  powerMonitor,
+  powerSaveBlocker,
+  type Tray
+} from 'electron'
 import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { APP_ID, APP_NAME } from '@shared/brand'
 import type { AppInfo } from '@shared/ipc'
 import { configureAppPaths, dataRoot, libraryRoot, logsDir, settingsFile } from './paths'
@@ -11,6 +21,10 @@ import { registerIpc } from './ipc'
 import { createMainWindow } from './window'
 import { createTray } from './tray'
 import { applyStartAtLogin, HIDDEN_ARG } from './login-item'
+import { configureHttp } from './core/http'
+import { JavaManager } from './core/java'
+import { MojangMeta } from './core/mojang'
+import { ServerManager } from './servers/manager'
 
 configureAppPaths()
 
@@ -27,6 +41,30 @@ async function start(): Promise<void> {
   const lifecycle = new Lifecycle()
   nativeTheme.themeSource = settings.get().theme
 
+  // Electron's fetch uses the system proxy settings, unlike Node's.
+  configureHttp({
+    version: app.getVersion(),
+    fetch: (input, init) => net.fetch(input as string, init)
+  })
+  const mojang = new MojangMeta(join(libraryRoot(), 'cache', 'meta'))
+  const java = new JavaManager(join(libraryRoot(), 'java'))
+  const servers = new ServerManager({ libraryRoot, settings, tasks, java, mojang })
+  await servers.load()
+  lifecycle.onShutdown('servers', () => servers.stopAll(), 90_000)
+
+  // Keep the PC awake while any server runs, unless the user turned that off.
+  let sleepBlocker: number | null = null
+  const updateSleepBlocker = (): void => {
+    const want = settings.get().preventSleep && servers.runningCount() > 0
+    if (want && sleepBlocker === null) {
+      sleepBlocker = powerSaveBlocker.start('prevent-app-suspension')
+    } else if (!want && sleepBlocker !== null) {
+      powerSaveBlocker.stop(sleepBlocker)
+      sleepBlocker = null
+    }
+  }
+  servers.on('activity', updateSleepBlocker)
+
   const appInfo = (): AppInfo => ({
     name: APP_NAME,
     version: app.getVersion(),
@@ -38,10 +76,11 @@ async function start(): Promise<void> {
     },
     paths: { library: libraryRoot(), dataRoot: dataRoot(), logs: logsDir() }
   })
-  registerIpc({ settings, tasks, appInfo })
+  registerIpc({ settings, tasks, servers, mojang, appInfo })
 
   settings.on('change', (next, prev) => {
     if (next.theme !== prev.theme) nativeTheme.themeSource = next.theme
+    if (next.preventSleep !== prev.preventSleep) updateSleepBlocker()
     if (next.startAtLogin !== prev.startAtLogin) {
       applyStartAtLogin(next.startAtLogin).catch((err) =>
         log.error('could not change start-at-login', err)

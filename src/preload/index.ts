@@ -9,23 +9,50 @@ function subscribe<T>(channel: string, listener: (value: T) => void): () => void
   }
 }
 
+const invoke = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args)
+
 const api: PughcraftApi = {
   app: {
-    info: () => ipcRenderer.invoke(IPC.appInfo),
-    openFolder: (which) => ipcRenderer.invoke(IPC.appOpenFolder, which),
-    openExternal: (url) => ipcRenderer.invoke(IPC.appOpenExternal, url)
+    info: () => invoke(IPC.appInfo),
+    openFolder: (which) => invoke(IPC.appOpenFolder, which),
+    openExternal: (url) => invoke(IPC.appOpenExternal, url)
   },
   settings: {
-    get: () => ipcRenderer.invoke(IPC.settingsGet),
-    update: (patch) => ipcRenderer.invoke(IPC.settingsUpdate, patch),
+    get: () => invoke(IPC.settingsGet),
+    update: (patch) => invoke(IPC.settingsUpdate, patch),
     onChange: (listener) => subscribe(IPC.settingsChanged, listener)
   },
   tasks: {
-    list: () => ipcRenderer.invoke(IPC.tasksList),
-    cancel: (id) => ipcRenderer.invoke(IPC.tasksCancel, id),
-    dismiss: (id) => ipcRenderer.invoke(IPC.tasksDismiss, id),
+    list: () => invoke(IPC.tasksList),
+    cancel: (id) => invoke(IPC.tasksCancel, id),
+    dismiss: (id) => invoke(IPC.tasksDismiss, id),
     onUpdate: (listener) => subscribe(IPC.tasksUpdated, listener),
     onRemove: (listener) => subscribe(IPC.tasksRemoved, listener)
+  },
+  catalog: {
+    mcVersions: () => invoke(IPC.catalogMcVersions),
+    loaders: (mc) => invoke(IPC.catalogLoaders, mc),
+    memory: () => invoke(IPC.catalogMemory)
+  },
+  servers: {
+    list: () => invoke(IPC.serversList),
+    create: (request) => invoke(IPC.serversCreate, request),
+    retryInstall: (id) => invoke(IPC.serversRetryInstall, id),
+    start: (id) => invoke(IPC.serversStart, id),
+    stop: (id) => invoke(IPC.serversStop, id),
+    restart: (id) => invoke(IPC.serversRestart, id),
+    kill: (id) => invoke(IPC.serversKill, id),
+    command: (id, text) => invoke(IPC.serversCommand, id, text),
+    console: (id) => invoke(IPC.serversConsole, id),
+    properties: (id) => invoke(IPC.serversProperties, id),
+    setSimple: (id, patch) => invoke(IPC.serversSetSimple, id, patch),
+    setRaw: (id, text) => invoke(IPC.serversSetRaw, id, text),
+    update: (id, patch) => invoke(IPC.serversUpdate, id, patch),
+    remove: (id) => invoke(IPC.serversRemove, id),
+    openFolder: (id) => invoke(IPC.serversOpenFolder, id),
+    onChanged: (listener) => subscribe(IPC.serversChanged, listener),
+    onRemoved: (listener) => subscribe(IPC.serversRemoved, listener),
+    onConsole: (listener) => subscribe(IPC.serversConsoleLines, listener)
   }
 }
 

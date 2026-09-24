@@ -23,7 +23,7 @@ Out of scope: player launcher, Microsoft/Xbox auth, Bedrock, macOS, remote web p
 | App shell | Electron (latest stable) |
 | UI | React + TypeScript + Tailwind + shadcn/ui |
 | Build / package | electron-vite, electron-builder (Windows NSIS per-user installer; Linux AppImage + .deb) |
-| Minecraft logic | `@xmcl/*` libraries (MIT): version data, Forge/NeoForge/Fabric installers, mod metadata, NBT. Wrapped behind our own `core/` interfaces so they can be swapped. |
+| Minecraft logic | `@xmcl/*` libraries (MIT) for reading mods and world files (mod metadata, NBT), pinned to known-good versions and wrapped behind our own interfaces. Server installs use official sources per §4.3. *(Owner-approved change, 2026-09-23.)* |
 | Tests | Vitest for core logic |
 
 Architecture: the Electron **main process** does all I/O (downloads, extraction, server processes, networking, backups). The **renderer** is UI only and talks to main through a typed IPC API (context isolation on, no Node in the renderer). Every slow job runs as a cancellable *task* that streams progress (bytes, files, current step) to the UI. The UI must never look frozen.

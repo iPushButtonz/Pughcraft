@@ -12,15 +12,17 @@ const items: { page: Page; label: string; icon: LucideIcon }[] = [
 function NavButton({ page, label, icon: Icon }: { page: Page; label: string; icon: LucideIcon }) {
   const current = useNav((s) => s.page)
   const go = useNav((s) => s.go)
+  // A server's dashboard lives under My Servers.
+  const active = current === page || (page === 'servers' && current === 'server')
   return (
     <button
       type="button"
-      onClick={() => go(page)}
-      aria-current={current === page ? 'page' : undefined}
+      onClick={() => go(page as Exclude<Page, 'server'>)}
+      aria-current={active ? 'page' : undefined}
       className={cn(
         'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
         'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground',
-        current === page && 'bg-sidebar-accent text-sidebar-foreground'
+        active && 'bg-sidebar-accent text-sidebar-foreground'
       )}
     >
       <Icon className="size-4" />

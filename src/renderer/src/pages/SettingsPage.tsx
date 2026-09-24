@@ -79,6 +79,19 @@ export function SettingsPage() {
             onCheckedChange={(v) => void update({ startAtLogin: v })}
           />
         </SettingRow>
+        {advanced && (
+          <SettingRow
+            label={t.settings.preventSleep}
+            hint={t.settings.preventSleepHint}
+            htmlFor="prevent-sleep"
+          >
+            <Switch
+              id="prevent-sleep"
+              checked={settings.preventSleep}
+              onCheckedChange={(v) => void update({ preventSleep: v })}
+            />
+          </SettingRow>
+        )}
       </SettingSection>
 
       <SettingSection title={t.settings.appearance}>

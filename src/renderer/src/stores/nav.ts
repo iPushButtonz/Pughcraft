@@ -1,13 +1,18 @@
 import { create } from 'zustand'
 
-export type Page = 'servers' | 'settings'
+export type Page = 'servers' | 'server' | 'settings'
 
 interface NavState {
   page: Page
-  go(page: Page): void
+  /** The server whose dashboard is open when `page` is 'server'. */
+  serverId: string | null
+  go(page: Exclude<Page, 'server'>): void
+  openServer(id: string): void
 }
 
 export const useNav = create<NavState>((set) => ({
   page: 'servers',
-  go: (page) => set({ page })
+  serverId: null,
+  go: (page) => set({ page, serverId: null }),
+  openServer: (id) => set({ page: 'server', serverId: id })
 }))

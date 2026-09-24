@@ -32,11 +32,14 @@ await new Promise((resolve, reject) => {
 })
 let nextId = 1
 const pending = new Map()
+const events = []
 ws.onmessage = (msg) => {
   const data = JSON.parse(msg.data)
   if (data.id && pending.has(data.id)) {
     pending.get(data.id)(data)
     pending.delete(data.id)
+  } else if (data.method) {
+    events.push(data)
   }
 }
 const send = (method, params = {}) =>
@@ -51,7 +54,22 @@ const evaluate = async (expression) => {
   return r.result.value
 }
 
-if (command === 'shot') {
+if (command === 'errors') {
+  // Reloads the UI and prints any exceptions or console errors during startup.
+  await send('Runtime.enable')
+  await send('Page.enable')
+  events.length = 0
+  await send('Page.reload')
+  await new Promise((r) => setTimeout(r, Number(arg ?? 5000)))
+  for (const e of events) {
+    if (e.method === 'Runtime.exceptionThrown') {
+      console.log('EXCEPTION', e.params.exceptionDetails.exception?.description ?? e.params.exceptionDetails.text)
+    } else if (e.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(e.params.type)) {
+      console.log(e.params.type.toUpperCase(), e.params.args.map((a) => a.value ?? a.description).join(' '))
+    }
+  }
+  console.log('done')
+} else if (command === 'shot') {
   const { data } = await send('Page.captureScreenshot', { format: 'png' })
   await writeFile(arg ?? 'shot.png', Buffer.from(data, 'base64'))
   console.log(`saved ${arg ?? 'shot.png'}`)
