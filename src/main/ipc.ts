@@ -1,6 +1,10 @@
 import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { mkdir } from 'node:fs/promises'
+import { isAbsolute } from 'node:path'
+import type { BackupSchedule } from '@shared/backups'
 import type { ImportRequest } from '@shared/imports'
 import type { ImportService } from './import/service'
+import type { BackupManager } from './backups/manager'
 import { IPC, type AppInfo, type FolderKind, type ServerConfigPatch } from '@shared/ipc'
 import type { CreateServerRequest, SimpleProperties } from '@shared/servers'
 import type { SettingsStore } from './settings'
@@ -23,6 +27,7 @@ interface Deps {
   servers: ServerManager
   network: NetworkManager
   imports: ImportService
+  backups: BackupManager
   mojang: MojangMeta
   appInfo: () => AppInfo
 }
@@ -50,7 +55,7 @@ function broadcast(channel: string, payload: unknown): void {
 const FOLDERS: FolderKind[] = ['library', 'dataRoot', 'logs']
 const str = (v: unknown): string => String(v)
 
-export function registerIpc({ settings, tasks, servers, network, imports, mojang, appInfo }: Deps): void {
+export function registerIpc({ settings, tasks, servers, network, imports, backups, mojang, appInfo }: Deps): void {
   handle(IPC.appInfo, () => appInfo())
   handle(IPC.appOpenFolder, async (which) => {
     if (!FOLDERS.includes(which as FolderKind)) return
@@ -149,7 +154,48 @@ export function registerIpc({ settings, tasks, servers, network, imports, mojang
   handle(IPC.importsRun, (req) => imports.run(req as ImportRequest))
   handle(IPC.importsDiscard, (id) => imports.discard(str(id)))
   handle(IPC.worldsList, (id) => servers.worlds(str(id)))
-  handle(IPC.worldsActivate, (id, slot) => servers.activateWorld(str(id), str(slot)))
+  // Switching worlds goes through backups so a safety backup is taken first.
+  handle(IPC.worldsActivate, (id, slot) => backups.switchWorld(str(id), str(slot)))
   handle(IPC.worldsRemove, (id, slot) => servers.removeWorld(str(id), str(slot)))
   servers.on('worlds', (id) => broadcast(IPC.worldsChanged, id))
+
+  // Backup ids become file names, so only accept the shape we generate.
+  const backupId = (v: unknown): string => {
+    const s = str(v)
+    if (!/^[A-Za-z0-9-]{1,80}$/.test(s)) throw new Error('Unknown backup.')
+    return s
+  }
+  handle(IPC.backupsView, (id) => backups.view(str(id)))
+  handle(IPC.backupsNow, (id) => backups.backupNow(str(id)))
+  handle(IPC.backupsSetSchedule, (id, patch) => {
+    const p = (patch ?? {}) as Record<string, unknown>
+    const clean: Partial<BackupSchedule> = {}
+    if (p.intervalMinutes === null || typeof p.intervalMinutes === 'number') clean.intervalMinutes = p.intervalMinutes
+    if (typeof p.onStop === 'boolean') clean.onStop = p.onStop
+    if (typeof p.keep === 'number') clean.keep = p.keep
+    if (p.location === null || (typeof p.location === 'string' && isAbsolute(p.location))) clean.location = p.location
+    return backups.setSchedule(str(id), clean)
+  })
+  handle(IPC.backupsSetProtected, (id, b, value) => backups.setProtected(str(id), backupId(b), value === true))
+  handle(IPC.backupsDelete, (id, b) => backups.delete(str(id), backupId(b)))
+  handle(IPC.backupsRestore, (id, b, mode) => {
+    if (mode !== 'server' && mode !== 'world') throw new Error('Unknown restore choice.')
+    return backups.restore(str(id), backupId(b), mode)
+  })
+  handle(IPC.backupsExport, (id, b) => backups.exportZip(str(id), backupId(b)))
+  handle(IPC.backupsPickLocation, async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const opts: Electron.OpenDialogOptions = {
+      title: 'Choose where to keep backups',
+      properties: ['openDirectory', 'createDirectory']
+    }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    return res.canceled ? null : (res.filePaths[0] ?? null)
+  })
+  handle(IPC.backupsOpenFolder, async (id) => {
+    const dir = backups.store(str(id)).dir
+    await mkdir(dir, { recursive: true })
+    await shell.openPath(dir)
+  })
+  backups.on('changed', (id) => broadcast(IPC.backupsChanged, id))
 }

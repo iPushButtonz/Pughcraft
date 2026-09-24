@@ -31,6 +31,7 @@ import { AudienceChooser } from '@/components/network/AudienceChooser'
 import { NetworkPanel, useServerNetwork } from '@/components/network/NetworkPanel'
 import { ShareButton } from '@/components/network/ShareButton'
 import { WorldsPanel } from '@/components/servers/WorldsPanel'
+import { BackupsPanel } from '@/components/servers/BackupsPanel'
 import { useServer } from '@/stores/servers'
 import { useTasks } from '@/stores/tasks'
 import { useNav } from '@/stores/nav'
@@ -238,6 +239,9 @@ export function ServerPage({ id }: { id: string }) {
           <TabsTrigger value="worlds" disabled={!c.installed}>
             {t.worlds.tab}
           </TabsTrigger>
+          <TabsTrigger value="backups" disabled={!c.installed}>
+            {t.backups.tab}
+          </TabsTrigger>
           <TabsTrigger value="console">{d.tabs.console}</TabsTrigger>
           <TabsTrigger value="settings" disabled={server.status === 'installing'}>
             {d.tabs.settings}
@@ -251,6 +255,9 @@ export function ServerPage({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="worlds" className="pt-2">
           <WorldsPanel server={server} />
+        </TabsContent>
+        <TabsContent value="backups" className="pt-2">
+          <BackupsPanel server={server} />
         </TabsContent>
         <TabsContent value="console" className="min-h-[24rem] flex-1 pt-2">
           <ConsoleView server={server} />

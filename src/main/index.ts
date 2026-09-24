@@ -29,6 +29,7 @@ import { NetworkManager } from './net/network'
 import { PlayitManager } from './net/playit'
 import { BoreManager } from './net/bore'
 import { ImportService } from './import/service'
+import { BackupManager } from './backups/manager'
 
 configureAppPaths()
 
@@ -90,7 +91,11 @@ async function start(): Promise<void> {
   })
   const imports = new ImportService({ tasks, servers, mojang, stagingDir: join(libraryRoot(), 'cache', 'import') })
   await imports.init()
-  registerIpc({ settings, tasks, servers, network, imports, mojang, appInfo })
+  const backups = new BackupManager({ servers, tasks, isQuitting: () => lifecycle.isQuitting })
+  lifecycle.onShutdown('backups', () => backups.shutdown(), 60_000)
+  // Dev builds only: lets scripts/cdp.mjs reach the managers for testing.
+  if (!app.isPackaged) Object.assign(globalThis, { __pughcraftDev: { servers, backups, settings } })
+  registerIpc({ settings, tasks, servers, network, imports, backups, mojang, appInfo })
 
   settings.on('change', (next, prev) => {
     if (next.theme !== prev.theme) nativeTheme.themeSource = next.theme

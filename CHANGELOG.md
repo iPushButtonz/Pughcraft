@@ -46,6 +46,17 @@ All notable changes to Pughcraft. Versions follow [Semantic Versioning](https://
   - If a game-only mod still breaks the first start, it is moved aside and the server tries again.
 - Worlds tab: keep several worlds per server and switch between them instantly.
 - Crash messages now name the mod that's missing or doesn't belong, and explain worlds from newer versions.
+- Backups tab:
+  - Smart backups: each backup only stores what changed, yet restores on its own. A 200 MB world backs up again in about a second.
+  - You choose when backups happen, per server: every 30 minutes while people play (any interval in Advanced), when the server stops, and a "Back up now" button that always works. Backups are skipped when nobody played.
+  - Backups of a running server pause saving for a moment so no file is caught half-written. Players can keep playing.
+  - Keeps the newest 10 automatic backups (adjustable). Backups you make yourself are kept until you delete them, and any backup can be protected.
+  - Restore the whole server (world, settings, mods and the Minecraft version) or only the world. A safety backup of how things were is always taken first.
+  - Save any backup as a normal .zip. Advanced: move backups to another folder or drive.
+- Switching worlds now takes a safety backup first.
 
 ### Changed
 - Brand green is a little brighter.
+
+### Fixed
+- Chat messages like "<Alex> : Steve joined the game" could fool the player list.

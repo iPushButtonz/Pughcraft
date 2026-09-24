@@ -91,12 +91,43 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
     - Server-folder import reused the existing launcher and ran in 25 s.
     - World add, switch and switch back all work.
     - The 26.3→26.2 guard fires. Realms tar.gz and the CF message are correct.
-  - **Not yet tested live:** `.mrpack` download (needs a real pack; ask the owner before downloading one).
+  - **.mrpack tested live** (owner OK'd a small download).
+    - I used a mini pack of 3 real Modrinth mods (~4 MB), because real 26.2 packs list 100+ mods.
+    - Fabric API and Lithium downloaded and passed their sha512 checks. Mod Menu (server unsupported) was left out.
+    - overrides and server-overrides were copied; client-overrides were skipped.
+    - Running in 63 s. The test server was deleted afterwards.
+  - Bug found and fixed: the archive type is now detected by magic bytes (.mrpack is a zip).
   - The console dims known-harmless warnings (Perflib, Unsafe).
   - Caught and fixed PowerShell encoding damage (see memory: no PowerShell text rewrites).
+- **Step 5 ★ backups: done (2026-09-24), awaiting demo feedback.**
+  - **Store** (`src/main/backups/store.ts`): content-addressed. `objects/<aa>/<sha256>` plus `snapshots/<id>.json` manifests.
+    - Size+mtime reuse the previous hash, so unchanged files aren't re-read.
+    - Covers `server/` and `worlds/`. Skips logs, crash-reports, cache, .fabric, debug, session.lock and *.log.
+    - Retention: newest `keep` auto backups; safety backups kept 14 days; manual and protected ones never pruned. GC removes unused objects.
+    - Restore modes: whole server (also removes files and world slots added since, and brings back the software config) or world only (level + _nether/_the_end).
+    - Export .zip (yazl) and move to another folder.
+  - **Manager** (`src/main/backups/manager.ts`):
+    - One job at a time per server.
+    - A start gate: Start waits for a running backup, and is refused during a restore. A server counts as live while it's launching.
+    - Timer every N minutes, only if someone was online since the last backup. On-stop backup after clean stops only (not crashes, not app quit).
+    - Hot backups use save-off → `save-all flush` → wait for "Saved the game" → copy → save-on.
+    - World switches go through a safety backup.
+  - **UI:** Backups tab.
+    - Simple: 30-minute switch, on-stop switch, keep N, "Back up now".
+    - Advanced: exact minutes and folder.
+    - List: kind badge, reason, sizes, restore dialog (whole server or world only, with version notes), protect, export, delete.
+  - **Verified live on "Transfer world"** (Fabric 26.2, 217 MB):
+    - The first backup took under a second; later ones added 0.4–3 KB.
+    - Hot backup console sequence was correct. The 5-minute timer fired on time. On-stop backup worked.
+    - World-only restore removed the stray file and kept the settings. Whole-server restore brought the MOTD back.
+    - A world switch took a safety backup, and a restore undid the switch. Start during a restore was refused.
+    - Exported a 273-entry .zip and moved backups away and back.
+    - EULA reset afterwards; schedule back to defaults.
+  - Also fixed: join/leave detection now needs `]: ` before the name, so chat can't fake players (with tests).
+  - Dev only: `globalThis.__pughcraftDev` = {servers, backups, settings} for `cdp.mjs main` (not in packaged builds).
 
 ## Next
-- Step 4 demo → owner feedback, then **step 5 ★: backups**.
+- Step 5 demo → owner feedback, then ask step-6 parameters (players/whitelist "Allow?" popup, ops/bans, game rules, file browser, library move, CPU/RAM).
 - **Step 4 background (done).** Owner decisions 2026-09-24:
   - **Dropping a single world asks:** "Make a new server" (pre-selected) or "Add to <existing server> as another world".
   - **The Import screen scans installed launchers when it opens.** Covers the official launcher, Prism, the CurseForge app and the Modrinth App. It's local-only, read-only, and copies files, never changes them.

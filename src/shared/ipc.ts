@@ -2,6 +2,7 @@ import type { Settings, SettingsPatch } from './settings'
 import type { Audience, DoctorReport, PlayitStatus, ServerNetworkView } from './network'
 import type { FoundItem, ImportAnalysis, ImportRequest, WorldInfo } from './imports'
 import type { TaskSnapshot } from './tasks'
+import type { BackupSchedule, BackupsView, RestoreMode } from './backups'
 import type {
   ConsoleLine,
   CreateServerRequest,
@@ -111,6 +112,21 @@ export interface PughcraftApi {
     remove(serverId: string, slot: string): Promise<void>
     onChanged(listener: (serverId: string) => void): () => void
   }
+  backups: {
+    view(serverId: string): Promise<BackupsView>
+    /** Returns the task id to follow. */
+    backupNow(serverId: string): Promise<string>
+    /** Returns a task id when the backups have to move to a new folder. */
+    setSchedule(serverId: string, patch: Partial<BackupSchedule>): Promise<string | null>
+    setProtected(serverId: string, backupId: string, value: boolean): Promise<void>
+    delete(serverId: string, backupId: string): Promise<void>
+    restore(serverId: string, backupId: string, mode: RestoreMode): Promise<string>
+    /** Asks where to save; null when the user cancels. */
+    exportZip(serverId: string, backupId: string): Promise<string | null>
+    pickLocation(): Promise<string | null>
+    openFolder(serverId: string): Promise<void>
+    onChanged(listener: (serverId: string) => void): () => void
+  }
 }
 
 /** IPC channel names, shared so main and preload can't drift apart. */
@@ -167,5 +183,15 @@ export const IPC = {
   worldsList: 'worlds:list',
   worldsActivate: 'worlds:activate',
   worldsRemove: 'worlds:remove',
-  worldsChanged: 'worlds:changed'
+  worldsChanged: 'worlds:changed',
+  backupsView: 'backups:view',
+  backupsNow: 'backups:now',
+  backupsSetSchedule: 'backups:set-schedule',
+  backupsSetProtected: 'backups:set-protected',
+  backupsDelete: 'backups:delete',
+  backupsRestore: 'backups:restore',
+  backupsExport: 'backups:export',
+  backupsPickLocation: 'backups:pick-location',
+  backupsOpenFolder: 'backups:open-folder',
+  backupsChanged: 'backups:changed'
 } as const

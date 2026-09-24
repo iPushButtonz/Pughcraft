@@ -1,4 +1,5 @@
 import type { ServerNetworkConfig } from './network'
+import type { BackupSchedule } from './backups'
 
 export type Loader = 'vanilla' | 'paper' | 'fabric' | 'forge' | 'neoforge' | 'custom'
 
@@ -40,6 +41,8 @@ export interface ServerConfig {
   lastStartedAt: string | null
   /** Who can join and how. Missing in configs from before networking existed. */
   network?: ServerNetworkConfig
+  /** When this server backs itself up. Missing = the defaults. */
+  backups?: BackupSchedule
 }
 
 export type ServerStatus = 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'crashed'

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, Globe2, Plus, Trash2 } from 'lucide-react'
+import { CheckCircle2, Globe2, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { WorldInfo } from '@shared/imports'
 import type { ServerSummary } from '@shared/servers'
@@ -28,6 +28,7 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
   const [worlds, setWorlds] = useState<WorldInfo[] | null>(null)
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<WorldInfo | null>(null)
+  const [switching, setSwitching] = useState<string | null>(null)
   const stopped = server.status === 'stopped' || server.status === 'crashed'
 
   const load = useCallback(() => api.worlds.list(id).then(setWorlds), [id])
@@ -85,11 +86,20 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
               <div className="flex shrink-0 items-center gap-2">
                 <Button
                   size="sm"
-                  disabled={!stopped}
-                  title={stopped ? undefined : w.stopFirst}
-                  onClick={act(() => api.worlds.activate(id, world.slot))}
+                  disabled={!stopped || switching !== null}
+                  title={stopped ? w.switchHint : w.stopFirst}
+                  onClick={act(async () => {
+                    setSwitching(world.slot)
+                    try {
+                      await api.worlds.activate(id, world.slot)
+                      toast.success(w.switched)
+                    } finally {
+                      setSwitching(null)
+                    }
+                  })}
                 >
-                  {w.activate}
+                  {switching === world.slot && <Loader2 className="animate-spin" />}
+                  {switching === world.slot ? w.switching : w.activate}
                 </Button>
                 <Button size="icon-sm" variant="ghost" aria-label={w.delete} onClick={() => setDeleting(world)}>
                   <Trash2 />

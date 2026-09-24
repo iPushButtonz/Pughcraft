@@ -8,8 +8,9 @@ const BATCH_MS = 50
 const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g
 
 const DONE = /Done \([\d.,]+s\)! For help, type/
-const JOINED = /:\s([A-Za-z0-9_]{1,16}) joined the game\s*$/
-const LEFT = /:\s([A-Za-z0-9_]{1,16}) left the game\s*$/
+// "]: " right before the name, so chat like "<Alex> : Steve joined the game" can't fake it.
+export const JOINED = /\]:\s([A-Za-z0-9_]{1,16}) joined the game\s*$/
+export const LEFT = /\]:\s([A-Za-z0-9_]{1,16}) left the game\s*$/
 
 export type ProcessPhase = 'starting' | 'running' | 'stopping' | 'exited'
 
@@ -87,6 +88,25 @@ export class ServerProcess extends EventEmitter<{
     this.appLine(`> ${clean}`)
     this.child.stdin.write(`${clean}\n`)
     return true
+  }
+
+  /** Resolves true when a console line matches `re`, false on timeout or exit. */
+  waitForLine(re: RegExp, timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const onLines = (lines: ConsoleLine[]): void => {
+        if (lines.some((l) => re.test(l.text))) done(true)
+      }
+      const onExit = (): void => done(false)
+      const timer = setTimeout(() => done(false), timeoutMs)
+      const done = (value: boolean): void => {
+        clearTimeout(timer)
+        this.off('lines', onLines)
+        this.off('exit', onExit)
+        resolve(value)
+      }
+      this.on('lines', onLines)
+      this.on('exit', onExit)
+    })
   }
 
   /** Asks the server to save and stop; kills it if it hasn't exited within `timeoutMs`. */

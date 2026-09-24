@@ -17,6 +17,7 @@ import type {
 } from '@shared/servers'
 import { DEFAULT_NETWORK, type ServerNetworkConfig } from '@shared/network'
 import type { WorldInfo } from '@shared/imports'
+import { DEFAULT_BACKUP_SCHEDULE, type BackupSchedule } from '@shared/backups'
 import type { SettingsStore } from '../settings'
 import type { TaskContext, TaskManager } from '../tasks'
 import { temurinMajorFor, type JavaManager } from '../core/java'
@@ -56,6 +57,8 @@ interface Entry {
   plan: SetupPlan | null
   /** Game-only mods already set aside by the trial start. */
   autoFixes: number
+  /** Inside start(), before the Java process exists. */
+  launching: boolean
 }
 
 /** Copies imported content into the new server folder during setup. */
@@ -102,6 +105,8 @@ export class ServerManager extends EventEmitter<{
   worlds: [id: string]
 }> {
   private readonly entries = new Map<string, Entry>()
+  /** Checks that must pass before a server starts, e.g. "no backup is being restored". */
+  private readonly startGates: ((id: string) => Promise<void>)[] = []
 
   constructor(private readonly deps: Deps) {
     super()
@@ -152,7 +157,8 @@ export class ServerManager extends EventEmitter<{
       crashes: [],
       taskId: null,
       plan: null,
-      autoFixes: 0
+      autoFixes: 0,
+      launching: false
     }
   }
 
@@ -430,10 +436,22 @@ export class ServerManager extends EventEmitter<{
 
   async start(id: string): Promise<void> {
     const e = this.entry(id)
-    const c = e.config
-    if (e.proc) return
-    if (!c.installed || !c.launch) throw new Error("This server's setup didn't finish. Retry setup first.")
+    if (e.proc || e.launching) return
+    if (!e.config.installed || !e.config.launch) throw new Error("This server's setup didn't finish. Retry setup first.")
     if (!this.deps.settings.get().eulaAcceptedAt) throw new Error('Please agree to the Minecraft EULA first.')
+    e.launching = true
+    try {
+      for (const gate of this.startGates) await gate(id)
+      await this.launch(e)
+    } finally {
+      e.launching = false
+    }
+  }
+
+  private async launch(e: Entry): Promise<void> {
+    const id = e.config.id
+    const c = e.config
+    if (!c.launch) throw new Error("This server's setup didn't finish. Retry setup first.")
     const dir = this.serverDir(id)
     await this.writeEula(dir)
     if (!(await isPortFree(c.port))) {
@@ -660,6 +678,85 @@ export class ServerManager extends EventEmitter<{
   async openFolder(id: string): Promise<void> {
     this.entry(id)
     await shell.openPath(this.serverDir(id))
+  }
+
+  // ------------------------------------------------------------ backups hooks
+
+  /** The folder holding this server's files, worlds store and default backups. */
+  rootDir(id: string): string {
+    this.entry(id)
+    return this.rootOf(id)
+  }
+
+  isLive(id: string): boolean {
+    const e = this.entry(id)
+    return e.proc !== null || e.launching
+  }
+
+  async activeLevel(id: string): Promise<{ levelName: string; worldName: string | null }> {
+    const store = this.worldStore(id)
+    const levelName = await store.levelName()
+    const active = (await store.list()).find((w) => w.active)
+    return { levelName, worldName: active?.levelName ?? null }
+  }
+
+  /**
+   * Runs `fn` while a running server has world saving paused and everything flushed to disk,
+   * so a backup never catches half-written files. A stopped server just runs `fn`.
+   */
+  async withSavesPaused<T>(id: string, fn: () => Promise<T>): Promise<T> {
+    const e = this.entry(id)
+    const proc = e.proc
+    if (!proc || e.status !== 'running') return fn()
+    const modern = await isAtLeast(this.deps.mojang, e.config.mcVersion, '1.13')
+    proc.command('save-off')
+    // "Saved the game" (1.13+) / "Saved the world" comes last, after every dimension is flushed.
+    const saved = proc.waitForLine(/Saved the (game|world)|Saving is already/i, 60_000)
+    proc.command(modern ? 'save-all flush' : 'save-all')
+    await saved
+    try {
+      return await fn()
+    } finally {
+      if (e.proc === proc) proc.command('save-on')
+    }
+  }
+
+  backupSchedule(id: string): BackupSchedule {
+    return { ...DEFAULT_BACKUP_SCHEDULE, ...this.entry(id).config.backups }
+  }
+
+  async setBackupSchedule(id: string, schedule: BackupSchedule): Promise<void> {
+    const e = this.entry(id)
+    e.config.backups = schedule
+    await this.saveConfig(e)
+    this.changed(e)
+  }
+
+  /** After restoring a whole-server backup: go back to the server software it had then. */
+  async restoreSoftware(id: string, from: ServerConfig): Promise<void> {
+    const e = this.entry(id)
+    const c = e.config
+    c.mcVersion = from.mcVersion
+    c.loader = from.loader
+    c.loaderVersion = from.loaderVersion
+    c.launch = from.launch
+    c.javaMajor = from.javaMajor
+    c.installed = from.installed
+    await this.saveConfig(e)
+    this.changed(e)
+  }
+
+  appNote(id: string, text: string): void {
+    this.appLine(this.entry(id), text)
+  }
+
+  addStartGate(gate: (id: string) => Promise<void>): void {
+    this.startGates.push(gate)
+  }
+
+  /** Files changed behind the world list's back (e.g. a restore); tell the UI. */
+  worldsChanged(id: string): void {
+    this.emit('worlds', id)
   }
 
   // ------------------------------------------------------------ worlds

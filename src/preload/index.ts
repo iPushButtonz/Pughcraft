@@ -81,6 +81,18 @@ const api: PughcraftApi = {
     activate: (serverId, slot) => invoke(IPC.worldsActivate, serverId, slot),
     remove: (serverId, slot) => invoke(IPC.worldsRemove, serverId, slot),
     onChanged: (listener) => subscribe(IPC.worldsChanged, listener)
+  },
+  backups: {
+    view: (serverId) => invoke(IPC.backupsView, serverId),
+    backupNow: (serverId) => invoke(IPC.backupsNow, serverId),
+    setSchedule: (serverId, patch) => invoke(IPC.backupsSetSchedule, serverId, patch),
+    setProtected: (serverId, backupId, value) => invoke(IPC.backupsSetProtected, serverId, backupId, value),
+    delete: (serverId, backupId) => invoke(IPC.backupsDelete, serverId, backupId),
+    restore: (serverId, backupId, mode) => invoke(IPC.backupsRestore, serverId, backupId, mode),
+    exportZip: (serverId, backupId) => invoke(IPC.backupsExport, serverId, backupId),
+    pickLocation: () => invoke(IPC.backupsPickLocation),
+    openFolder: (serverId) => invoke(IPC.backupsOpenFolder, serverId),
+    onChanged: (listener) => subscribe(IPC.backupsChanged, listener)
   }
 }
 
