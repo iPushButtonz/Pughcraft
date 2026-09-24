@@ -117,17 +117,24 @@ export const t = {
     noneYet: 'No backups yet',
     openFolder: 'Open folder',
     whenTitle: 'When to back up',
-    interval: (minutes: number) =>
-      minutes % 60 === 0 ? `Every ${minutes / 60 === 1 ? 'hour' : `${minutes / 60} hours`} while people play` : `Every ${minutes} minutes while people play`,
+    intervalTitle: 'While people play',
     intervalHint: 'Skipped when nobody has been online since the last backup.',
+    intervalOff: 'Off',
+    minutes: 'min',
+    intervalCustom: 'Type any number of minutes (5 to 1440). Leave it empty to turn this off.',
+    history: (keep: number, span: string) => `With ${keep} kept, you can go back about ${span}.`,
+    historyShort: (keep: number, span: string) =>
+      `Backups this often keep less history: with ${keep} kept, you can only go back about ${span}. Raise “Automatic backups to keep” for more.`,
+    timedOff: (onStop: boolean) =>
+      onStop
+        ? 'Timed backups are off. Backups still happen when the server stops, or when you click “Back up now”.'
+        : 'Timed backups are off. Backups only happen when you click “Back up now”.',
     onStop: 'When the server stops',
     onStopHint: 'Only if someone played since the last backup.',
     manualHint: '“Back up now” always works, even with both of these off.',
     keep: 'Automatic backups to keep',
     keepHint: 'The oldest are removed as new ones are made. Backups you make yourself stay until you delete them.',
     advancedTitle: 'Advanced',
-    intervalExact: 'Minutes between backups',
-    intervalExactHint: 'From 5 to 1440 (one day). Leave empty to turn timed backups off.',
     location: 'Where backups are kept',
     locationHint: 'Another drive keeps them safe if this one fails. Existing backups move there.',
     change: 'Change…',

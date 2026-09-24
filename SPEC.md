@@ -105,9 +105,9 @@ Before a server's first start, the app shows Mojang's EULA link and an **uncheck
 
 - **Smart snapshots:** each file is stored once by content hash, so a backup only adds the files that changed. Every snapshot still restores on its own, and any snapshot can be exported to a normal `.zip`.
 - **Hot backups while running:** `save-off` → `save-all flush` → wait for "Saved the game" → snapshot → `save-on`.
-- **Automatic:** by default every 30 minutes (only if someone played since the last backup) and when the server stops. By default the **newest 10** are kept.
+- **Automatic:** by default every 15 minutes (only if someone played since the last backup) and when the server stops. By default the **newest 10** are kept.
 - **You choose when backups happen** (per server, any combination):
-  - every N minutes while people play (Simple: on/off at 30 minutes; Advanced: any interval);
+  - every N minutes while people play: a slider (Off, 5, 10, 15, 20, 30, 45 minutes) plus a box to type any number of minutes. Below it, a line says how far back the kept backups reach, shown as a caution under 15 minutes;
   - when the server stops;
   - only when you click **Back up now**, which is always available.
 
@@ -242,7 +242,7 @@ The app runs at every step. After each ★, the owner gets a demo and a chance t
 3. The library lives in `%APPDATA%\Pughcraft`. It can be moved, with a warning for cloud-synced folders.
 4. Server types: Vanilla, Paper, Fabric, Forge, NeoForge. Anything else runs as a Custom jar.
 5. Tunnel choices: playit.gg (default), bore, custom.
-6. Backups: smart snapshots, every 30 minutes only if someone played, plus on stop. Keep 10 automatic backups; safety backups kept 14 days.
+6. Backups: smart snapshots, every 15 minutes only if someone played (owner changed from 30 on 2026-09-24 after load tests), plus on stop. Keep 10 automatic backups; safety backups kept 14 days.
 7. RAM: vanilla/Paper 3 GB; modded 4 / 6 / 8 GB by mod count (<50 / 50–150 / 150+). Always capped so the PC keeps 4 GB free.
 8. Port 25565, or the next free one. Several servers can run at once.
 9. `online-mode` stays on, so players need real accounts. Offline mode is only possible in Advanced, with a warning.

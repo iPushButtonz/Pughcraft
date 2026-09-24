@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Archive, FolderOpen, Hand, Loader2, Lock, MoreHorizontal, RotateCcw, ShieldCheck, Timer, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  Archive,
+  FolderOpen,
+  Hand,
+  Loader2,
+  Lock,
+  MoreHorizontal,
+  RotateCcw,
+  ShieldCheck,
+  Timer,
+  Trash2
+} from 'lucide-react'
 import { toast } from 'sonner'
 import type { BackupInfo, BackupKind, BackupsView, RestoreMode } from '@shared/backups'
 import type { ServerSummary } from '@shared/servers'
@@ -7,6 +19,7 @@ import { formatBytes } from '@shared/format'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -49,25 +62,106 @@ async function attempt<T>(action: () => Promise<T>): Promise<T | undefined> {
 
 const when = (iso: string): string => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
-/** Minutes between backups, typed by hand in Advanced. Empty turns timed backups off. */
-function IntervalInput({ value, onCommit }: { value: number | null; onCommit: (v: number | null) => void }) {
-  const [draft, setDraft] = useState(value === null ? '' : String(value))
-  useEffect(() => setDraft(value === null ? '' : String(value)), [value])
-  const commit = (): void => {
-    const text = draft.trim()
-    const next = text === '' ? null : Number(text)
-    if (next !== null && !Number.isFinite(next)) return setDraft(value === null ? '' : String(value))
-    if (next !== value) onCommit(next)
+/** Slider stops for "every N minutes"; null is Off. Any other number can be typed. */
+const INTERVAL_STOPS: (number | null)[] = [null, 5, 10, 15, 20, 30, 45]
+
+/** The stop the slider sits on for a typed value: exact match, else the nearest one. */
+function stopIndex(minutes: number | null): number {
+  if (minutes === null) return 0
+  let best = 1
+  for (let i = 1; i < INTERVAL_STOPS.length; i++) {
+    if (Math.abs((INTERVAL_STOPS[i] as number) - minutes) < Math.abs((INTERVAL_STOPS[best] as number) - minutes)) best = i
   }
+  return best
+}
+
+/** "50 minutes", "2.5 hours", "3 days". */
+function span(minutes: number): string {
+  if (minutes < 60) return `${minutes} minutes`
+  const hours = minutes / 60
+  if (hours < 48) return `${Number(hours.toFixed(1))} ${hours === 1 ? 'hour' : 'hours'}`
+  return `${Number((hours / 24).toFixed(1))} days`
+}
+
+/** Minutes between backups while people play: a slider with common choices plus a box for any number. */
+function IntervalControl({
+  value,
+  keep,
+  onStop,
+  onCommit
+}: {
+  value: number | null
+  keep: number
+  onStop: boolean
+  onCommit: (v: number | null) => void
+}) {
+  const [draft, setDraft] = useState(value)
+  const [text, setText] = useState(value === null ? '' : String(value))
+  useEffect(() => {
+    setDraft(value)
+    setText(value === null ? '' : String(value))
+  }, [value])
+
+  const commitText = (): void => {
+    const trimmed = text.trim()
+    if (trimmed === '') return value !== null ? onCommit(null) : undefined
+    const n = Math.min(1440, Math.max(5, Math.round(Number(trimmed))))
+    if (!Number.isFinite(n)) return setText(value === null ? '' : String(value))
+    setText(String(n))
+    if (n !== value) onCommit(n)
+  }
+
+  const short = draft !== null && draft < 15
   return (
-    <Input
-      className="w-24"
-      inputMode="numeric"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-    />
+    <div className="space-y-3">
+      <div className="flex items-center gap-4">
+        <div className="flex-1 space-y-2">
+          <Slider
+            min={0}
+            max={INTERVAL_STOPS.length - 1}
+            step={1}
+            value={[stopIndex(draft)]}
+            onValueChange={([i]) => {
+              setDraft(INTERVAL_STOPS[i])
+              setText(INTERVAL_STOPS[i] === null ? '' : String(INTERVAL_STOPS[i]))
+            }}
+            onValueCommit={([i]) => INTERVAL_STOPS[i] !== value && onCommit(INTERVAL_STOPS[i])}
+            aria-label={b.intervalTitle}
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            {INTERVAL_STOPS.map((m) => (
+              <span key={m ?? 'off'} className="w-8 text-center first:text-left last:text-right">
+                {m ?? b.intervalOff}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 pb-5">
+          <Input
+            className="w-20 text-right"
+            inputMode="numeric"
+            placeholder={b.intervalOff}
+            value={text}
+            title={b.intervalCustom}
+            aria-label={b.intervalCustom}
+            onChange={(e) => setText(e.target.value.replace(/[^\d]/g, ''))}
+            onBlur={commitText}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          />
+          <span className="text-sm text-muted-foreground">{b.minutes}</span>
+        </div>
+      </div>
+      {draft === null ? (
+        <p className="text-sm text-muted-foreground">{b.timedOff(onStop)}</p>
+      ) : short ? (
+        <p className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 p-2 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          {b.historyShort(keep, span(draft * keep))}
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{b.history(keep, span(draft * keep))}</p>
+      )}
+    </div>
   )
 }
 
@@ -272,10 +366,12 @@ export function BackupsPanel({ server }: { server: ServerSummary }) {
       </div>
 
       <SettingSection title={b.whenTitle}>
-        <SettingRow label={b.interval(s.intervalMinutes ?? 30)} hint={b.intervalHint}>
-          <Switch
-            checked={s.intervalMinutes !== null}
-            onCheckedChange={(on) => setSchedule({ intervalMinutes: on ? 30 : null })}
+        <SettingRow label={b.intervalTitle} hint={b.intervalHint} stacked>
+          <IntervalControl
+            value={s.intervalMinutes}
+            keep={s.keep}
+            onStop={s.onStop}
+            onCommit={(v) => setSchedule({ intervalMinutes: v })}
           />
         </SettingRow>
         <SettingRow label={b.onStop} hint={b.onStopHint}>
@@ -302,9 +398,6 @@ export function BackupsPanel({ server }: { server: ServerSummary }) {
 
       {advanced && (
         <SettingSection title={b.advancedTitle}>
-          <SettingRow label={b.intervalExact} hint={b.intervalExactHint}>
-            <IntervalInput value={s.intervalMinutes} onCommit={(v) => setSchedule({ intervalMinutes: v })} />
-          </SettingRow>
           <SettingRow label={b.location} hint={b.locationHint} stacked>
             <div className="flex items-center gap-2">
               <code data-selectable className="min-w-0 flex-1 truncate rounded-md border bg-muted/40 px-2 py-1.5 text-xs">

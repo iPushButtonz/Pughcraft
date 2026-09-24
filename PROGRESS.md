@@ -124,10 +124,29 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
     - Exported a 273-entry .zip and moved backups away and back.
     - EULA reset afterwards; schedule back to defaults.
   - Also fixed: join/leave detection now needs `]: ` before the name, so chat can't fake players (with tests).
+  - **Owner feedback after demo:**
+    - Keep the backup list and the folder button as they are.
+    - Interval is now a slider (Off, 5, 10, 15, 20, 30, 45) plus a type-in box. A history line underneath is a caution under 15 min.
+    - Default changed to **15 minutes** (SPEC §5/§14 updated).
+    - The owner decided the backup pause is not an issue for 1–10 players. Autosave comparison and the "gentler save" idea were dropped.
+  - **Load test stats (2026-09-24; i5-14450HX laptop, 16 GB, NVMe; "Transfer world" Fabric 26.2).** "Freeze" = time the server thread blocks on `save-all flush`; the copy runs off-thread.
+    - Simulated players (forceload a 21×21 chunk area each):
+
+      | Players | After new land | After 2 min of play |
+      |---|---|---|
+      | 0 | – | 0.12 s |
+      | 1 | 2.4 s | 0.16 s |
+      | 2 | 2.2 s | 0.19 s |
+      | 5 | 5.9 s | 0.19 s |
+      | 10 | 10.9 s | 0.48 s |
+
+      Forceloaded chunks barely tick (0.2 ms/tick), so the simulation overstates flush size and understates CPU load.
+    - Real client (owner's account via the official launcher, 1 player): just joined 0.42 s; after 60 s of creative sprint-flying 0.65 s (42 MB new, 11 ms/tick); after 2 min hovering 0.23 s. Copies took 1–1.6 s.
+    - Tick sampling across ~3.5 min with the real player showed no tick over 59 ms.
   - Dev only: `globalThis.__pughcraftDev` = {servers, backups, settings} for `cdp.mjs main` (not in packaged builds).
 
 ## Next
-- Step 5 demo → owner feedback, then ask step-6 parameters (players/whitelist "Allow?" popup, ops/bans, game rules, file browser, library move, CPU/RAM).
+- Step 5 slider/default demo → owner feedback, then ask step-6 parameters (players/whitelist "Allow?" popup, ops/bans, game rules, file browser, library move, CPU/RAM).
 - **Step 4 background (done).** Owner decisions 2026-09-24:
   - **Dropping a single world asks:** "Make a new server" (pre-selected) or "Add to <existing server> as another world".
   - **The Import screen scans installed launchers when it opens.** Covers the official launcher, Prism, the CurseForge app and the Modrinth App. It's local-only, read-only, and copies files, never changes them.
@@ -162,6 +181,7 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
 
 ## Test data (owner-approved)
 - Owner's world `%USERPROFILE%\Downloads\southbendindianaminecraftworld.zip` (26.2): use it again as the main step-4 import test. Always use a copy; never modify the original.
+- Owner OK'd using the official Minecraft Launcher for real-player tests (2026-09-24). One account only, so 1 real player at a time. The launcher window is `C:\XboxGames\Minecraft Launcher\Content\Minecraft.exe`; the game is the launcher runtime's `javaw.exe`. Join test servers with Direct Connection (never edit the saved server list). Keep the owner's split-screen window layout.
 - Owner OK'd accepting the Minecraft EULA for test servers. After testing, reset it by deleting `%APPDATA%\Pughcraft\settings.json` so the app asks the owner normally.
 
 ## How to test the running app (dev)

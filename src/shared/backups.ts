@@ -13,7 +13,7 @@ export interface BackupSchedule {
 }
 
 export const DEFAULT_BACKUP_SCHEDULE: BackupSchedule = {
-  intervalMinutes: 30,
+  intervalMinutes: 15,
   onStop: true,
   keep: 10,
   location: null
@@ -22,7 +22,7 @@ export const DEFAULT_BACKUP_SCHEDULE: BackupSchedule = {
 export interface BackupInfo {
   id: string
   kind: BackupKind
-  /** Plain words, e.g. "Every 30 minutes", "Before restoring", "Backed up by you". */
+  /** Plain words, e.g. "Every 15 minutes", "Before restoring", "Backed up by you". */
   reason: string
   createdAt: string
   protected: boolean
