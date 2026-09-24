@@ -18,7 +18,7 @@ import { natPmpExternalIp, natPmpMap } from './natpmp'
 import { checkFirewall, fixFirewall, type FixResult } from './firewall'
 import { runDoctor } from './doctor'
 import type { PlayitError, PlayitManager } from './playit'
-import type { BoreManager } from './bore'
+import { BoreManager } from './bore'
 import { detectRouterBrand } from './router'
 import { meshAddresses } from './mesh'
 import { lookupPublicIp } from './outside'
@@ -193,6 +193,7 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
       void apply()
       return null
     }
+    if (!BoreManager.supported) throw new Error('The bore tunnel isn’t available on this system.')
     const { id: taskId, result } = this.deps.tasks.run('Setting up the bore tunnel', async (ctx) => {
       await this.deps.bore.ensure(ctx)
       await apply()

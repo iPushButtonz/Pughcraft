@@ -15,11 +15,11 @@ const log = logger('bore')
  */
 
 const VERSION = '0.6.0'
+/**
+ * No Windows build on purpose: Windows Defender flags bore as a trojan (a false positive
+ * common for tunnel tools), so the option is hidden there (SPEC §7.2).
+ */
 const BUILDS: Partial<Record<string, { file: string; sha256: string }>> = {
-  'win32-x64': {
-    file: `bore-v${VERSION}-x86_64-pc-windows-msvc.zip`,
-    sha256: '01709c64fe2787cdc9a21d7030b0f08ad72dff0c36b7ecb72f4f667a55a34b4f'
-  },
   'linux-x64': {
     file: `bore-v${VERSION}-x86_64-unknown-linux-musl.tar.gz`,
     sha256: 'e484d1e3acba77169b773f31a5bfb34192d4b660f44a094a658a2522cd2270f7'
@@ -36,6 +36,10 @@ export class BoreManager {
   private readonly running = new Map<string, ChildProcess>()
 
   constructor(private readonly toolsDir: string) {}
+
+  static get supported(): boolean {
+    return !!BUILDS[`${process.platform}-${process.arch}`]
+  }
 
   private get exe(): string {
     return join(this.toolsDir, `bore-${VERSION}${process.platform === 'win32' ? '.exe' : ''}`)

@@ -138,7 +138,7 @@ The app walks the ladder automatically and explains each step:
 2. **UPnP / NAT-PMP:** ask the router to open the TCP port. The app detects success or failure, renews the lease, removes the mapping on stop and reads the router's WAN IP.
 3. **Tunnel.** Optional and clearly labelled third-party; the app works without it. Choices:
    - **playit.gg** (default). Its open-source agent is downloaded on demand from playit's official GitHub and checksum-verified. Linking takes a one-time browser step (a guest account works).
-   - **bore.** No account, but the public relay is unreliable. A user's own bore server also works.
+   - **bore** (Linux only). No account, but the public relay is unreliable. A user's own bore server also works. Hidden on Windows because Windows Defender flags bore as a trojan (a false positive for tunnel tools). *(Owner-approved change, 2026-09-24.)*
    - **Custom** (Advanced): any command plus an address.
 4. **Manual port-forward guide:** detects the router brand (UPnP device info or gateway MAC vendor). Shows steps filled in with the user's exact local IP, port and TCP, an **Open router settings** button, a reminder to reserve the PC's local IP, and tips for common brands. There is no giant per-model database, because that would be a maintenance trap.
 5. **VPN mesh:** Tailscale and ZeroTier. The app detects whether they're installed and running, shows the mesh IP and walks the user through setup. Friends install the same VPN. It can't be embedded, because both need their own accounts.

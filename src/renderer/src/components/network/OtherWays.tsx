@@ -13,7 +13,10 @@ import { errorMessage } from '@/lib/errors'
 import { t } from '@/strings'
 
 const a = t.network.advanced
-const METHODS: InternetMethod[] = ['direct', 'manual', 'playit', 'bore', 'custom']
+// bore is hidden on Windows: Defender flags it (SPEC §7.2).
+const METHODS: InternetMethod[] = navigator.userAgent.includes('Windows')
+  ? ['direct', 'manual', 'playit', 'custom']
+  : ['direct', 'manual', 'playit', 'bore', 'custom']
 
 /** Advanced: pick exactly how friends outside reach the server. */
 export function OtherWays({ serverId, view }: { serverId: string; view: ServerNetworkView }) {

@@ -69,7 +69,10 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
   - 48 unit tests pass.
 
 ## Next
-- **Step 3 demo → owner feedback**, then **step 4 ★: import** (main test: owner's world zip).
+- Step 3 approved by the owner 2026-09-24.
+- **Step 4 ★: import** (main test: owner's world zip). Owner decisions 2026-09-24:
+  - **Dropping a single world asks:** "Make a new server" (pre-selected) or "Add to <existing server> as another world".
+  - **The Import screen scans installed launchers when it opens.** Covers the official launcher, Prism, the CurseForge app and the Modrinth App. It's local-only, read-only, and copies files, never changes them.
 - **Step 3 background (done).** Owner decisions (2026-09-23):
   - **Who can join is asked on first start:** "Just me / People on my Wi-Fi / Friends anywhere", changeable in the Network tab. "Friends anywhere" walks the ladder automatically.
   - **Host directly off the PC first** (UPnP/NAT-PMP; no extra apps, one click).
