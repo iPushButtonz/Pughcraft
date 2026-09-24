@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
@@ -331,7 +331,7 @@ export function CreateServerDialog({ open, onOpenChange }: { open: boolean; onOp
                     disabled={!availability?.available || loader === 'vanilla'}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="â€”" />
+                      <SelectValue placeholder="—" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
                       {availability?.versions.slice(0, 200).map((v) => (

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ModeSwitch } from '@/components/layout/ModeSwitch'
 import { TaskTray } from '@/components/TaskTray'
+import { GlobalImport } from '@/components/imports/GlobalImport'
 import { useResolvedTheme } from '@/hooks/use-resolved-theme'
 import { useNav, type Page } from '@/stores/nav'
 import { useSettings } from '@/stores/settings'
@@ -48,6 +49,7 @@ export function App() {
         </div>
       </main>
       <TaskTray />
+      <GlobalImport />
     </div>
   )
 }

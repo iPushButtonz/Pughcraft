@@ -2,11 +2,13 @@ import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { shell } from 'electron'
 import type {
   ConsoleLine,
   CreateServerRequest,
+  LaunchSpec,
+  Loader,
   ServerConfig,
   ServerPropertiesView,
   ServerStatus,
@@ -14,6 +16,7 @@ import type {
   SimpleProperties
 } from '@shared/servers'
 import { DEFAULT_NETWORK, type ServerNetworkConfig } from '@shared/network'
+import type { WorldInfo } from '@shared/imports'
 import type { SettingsStore } from '../settings'
 import type { TaskContext, TaskManager } from '../tasks'
 import { temurinMajorFor, type JavaManager } from '../core/java'
@@ -26,12 +29,16 @@ import { PropertiesFile } from './properties'
 import { applySimple, readSimple, type VersionFeatures } from './simple'
 import { defaultJvmArgs, log4jFixFor } from './jvm'
 import { explainCrash } from './crash'
+import { WorldStore } from './worlds'
+import { findClientOnlyCulprit } from '../import/culprit'
 import { isPortFree, memoryInfo, pickPort } from './system'
 
 const log = logger('servers')
 
 const CRASH_WINDOW_MS = 10 * 60 * 1000
 const MAX_AUTO_RESTARTS = 3
+/** Game-only mods the trial start may set aside in one go. */
+const MAX_AUTO_FIXES = 10
 
 interface Entry {
   config: ServerConfig
@@ -45,6 +52,22 @@ interface Entry {
   restartNeeded: boolean
   crashes: number[]
   taskId: string | null
+  /** How setup runs, kept so "Retry setup" repeats it exactly. */
+  plan: SetupPlan | null
+  /** Game-only mods already set aside by the trial start. */
+  autoFixes: number
+}
+
+/** Copies imported content into the new server folder during setup. */
+export type Populate = (
+  ctx: TaskContext,
+  serverDir: string
+) => Promise<{ launch?: LaunchSpec | null } | void>
+
+interface SetupPlan {
+  /** Gameplay basics from the Create dialog. */
+  initial?: CreateServerRequest
+  populate?: Populate
 }
 
 interface Deps {
@@ -76,6 +99,7 @@ export class ServerManager extends EventEmitter<{
   removed: [string]
   console: [{ id: string; lines: ConsoleLine[] }]
   activity: [runningCount: number]
+  worlds: [id: string]
 }> {
   private readonly entries = new Map<string, Entry>()
 
@@ -126,7 +150,9 @@ export class ServerManager extends EventEmitter<{
       maxPlayers: null,
       restartNeeded: false,
       crashes: [],
-      taskId: null
+      taskId: null,
+      plan: null,
+      autoFixes: 0
     }
   }
 
@@ -183,13 +209,42 @@ export class ServerManager extends EventEmitter<{
   // ------------------------------------------------------------ create & install
 
   async create(req: CreateServerRequest): Promise<{ id: string; taskId: string }> {
-    const name = req.name.trim().slice(0, 40)
-    if (!name) throw new Error('Give your server a name.')
     if (!(req.loader in LOADERS)) throw new Error('Unknown server type.')
-    const mem = memoryInfo()
-    const memoryMb = Math.round(Math.min(Math.max(req.memoryMb, 512), mem.maxMb))
+    const e = await this.register(req.name, req, req.port)
+    const plan: SetupPlan = { initial: req }
+    e.plan = plan
+    return { id: e.config.id, taskId: this.runInstall(e, plan) }
+  }
+
+  /**
+   * A server built from imported content (world, server folder, modpack, instance).
+   * `populate` copies the files in during setup; it may also say how to launch them.
+   */
+  async createImported(opts: {
+    name: string
+    mcVersion: string
+    loader: Loader
+    loaderVersion: string | null
+    memoryMb: number
+    acceptEula: boolean
+    populate: Populate
+  }): Promise<{ id: string; taskId: string }> {
+    const e = await this.register(opts.name, opts, null)
+    const plan: SetupPlan = { populate: opts.populate }
+    e.plan = plan
+    return { id: e.config.id, taskId: this.runInstall(e, plan) }
+  }
+
+  private async register(
+    rawName: string,
+    fields: { mcVersion: string; loader: Loader; loaderVersion: string | null; memoryMb: number; acceptEula: boolean },
+    requestedPort: number | null
+  ): Promise<Entry> {
+    const name = rawName.trim().slice(0, 40)
+    if (!name) throw new Error('Give your server a name.')
+    const memoryMb = Math.round(Math.min(Math.max(fields.memoryMb, 512), memoryInfo().maxMb))
     if (!this.deps.settings.get().eulaAcceptedAt) {
-      if (!req.acceptEula) throw new Error('Please agree to the Minecraft EULA to create a server.')
+      if (!fields.acceptEula) throw new Error('Please agree to the Minecraft EULA to create a server.')
       await this.deps.settings.update({ eulaAcceptedAt: new Date().toISOString() })
     }
     // Picking a port and registering the server happen under one lock so two quick
@@ -198,8 +253,8 @@ export class ServerManager extends EventEmitter<{
     let e: Entry
     try {
       const taken = new Set([...this.entries.values()].map((x) => x.config.port))
-      const port = req.port ?? (await pickPort(taken))
-      e = this.newEntry(this.initialConfig(name, req, memoryMb, port))
+      const port = requestedPort ?? (await pickPort(taken))
+      e = this.newEntry(this.initialConfig(name, fields, memoryMb, port))
       e.problem = null
       this.entries.set(e.config.id, e)
     } finally {
@@ -210,8 +265,7 @@ export class ServerManager extends EventEmitter<{
     await mkdir(join(this.rootOf(id), 'worlds'), { recursive: true })
     await mkdir(join(this.rootOf(id), 'backups'), { recursive: true })
     await this.saveConfig(e)
-    const taskId = this.runInstall(e, req)
-    return { id, taskId }
+    return e
   }
 
   private lockChain: Promise<void> = Promise.resolve()
@@ -227,7 +281,7 @@ export class ServerManager extends EventEmitter<{
 
   private initialConfig(
     name: string,
-    req: CreateServerRequest,
+    req: { mcVersion: string; loader: Loader; loaderVersion: string | null },
     memoryMb: number,
     port: number
   ): ServerConfig {
@@ -255,12 +309,12 @@ export class ServerManager extends EventEmitter<{
   retryInstall(id: string): string {
     const e = this.entry(id)
     if (e.proc) throw new Error('Stop the server first.')
-    return this.runInstall(e)
+    return this.runInstall(e, e.plan ?? {})
   }
 
-  private runInstall(e: Entry, initial?: CreateServerRequest): string {
+  private runInstall(e: Entry, plan: SetupPlan): string {
     const { id: taskId, result } = this.deps.tasks.run(`Setting up ${e.config.name}`, (ctx) =>
-      this.install(e, ctx, initial)
+      this.install(e, ctx, plan)
     )
     e.taskId = taskId
     this.setStatus(e, 'installing', null)
@@ -285,23 +339,37 @@ export class ServerManager extends EventEmitter<{
     return taskId
   }
 
-  private async install(e: Entry, ctx: TaskContext, initial?: CreateServerRequest): Promise<void> {
+  private async install(e: Entry, ctx: TaskContext, plan: SetupPlan): Promise<void> {
     const c = e.config
+    const initial = plan.initial
     const dir = this.serverDir(c.id)
     await mkdir(dir, { recursive: true })
     ctx.step('Checking Minecraft version')
-    const details = await this.deps.mojang.details(c.mcVersion, ctx.signal)
-    const javaPath = c.javaPath ?? (await this.deps.java.ensure(details.javaMajor, ctx))
+    const details = await this.deps.mojang.details(c.mcVersion, ctx.signal).catch(() => null)
+    if (!details && c.loader !== 'custom') throw new Error(`Minecraft ${c.mcVersion} isn't a known version.`)
+    const javaMajor = details?.javaMajor ?? 21
+    const javaPath = c.javaPath ?? (await this.deps.java.ensure(javaMajor, ctx))
     ctx.throwIfCancelled()
 
-    const result = await LOADERS[c.loader as keyof typeof LOADERS].install({
-      ctx,
-      serverDir: dir,
-      mcVersion: c.mcVersion,
-      loaderVersion: c.loaderVersion,
-      javaPath,
-      mojang: this.deps.mojang
-    })
+    // Imported content goes in first; it may bring its own server software.
+    const hints = plan.populate ? ((await plan.populate(ctx, dir)) ?? {}) : {}
+    ctx.throwIfCancelled()
+
+    let result: { launch: LaunchSpec; loaderVersion: string | null }
+    if (hints.launch) {
+      result = { launch: hints.launch, loaderVersion: c.loaderVersion }
+    } else if (c.loader === 'custom') {
+      throw new Error("Couldn't find how to start this server. Pick its server type in the import screen.")
+    } else {
+      result = await LOADERS[c.loader].install({
+        ctx,
+        serverDir: dir,
+        mcVersion: c.mcVersion,
+        loaderVersion: c.loaderVersion,
+        javaPath,
+        mojang: this.deps.mojang
+      })
+    }
 
     const fix = log4jFixFor(c.loader, await this.log4jBand(c.mcVersion))
     if (fix?.file) {
@@ -332,7 +400,7 @@ export class ServerManager extends EventEmitter<{
     }
     await writeAtomic(propsFile, props.serialize())
 
-    c.javaMajor = details.javaMajor
+    c.javaMajor = javaMajor
     c.launch = result.launch
     c.loaderVersion = result.loaderVersion
     if (c.jvmArgs.length === 0) c.jvmArgs = defaultJvmArgs(fix)
@@ -430,6 +498,23 @@ export class ServerManager extends EventEmitter<{
     // Only auto-restart servers that had been running; a server that can't even start
     // would just fail again the same way.
     const wasRunning = info.tail.some((l) => /Done \([\d.,]+s\)!/.test(l))
+
+    // A modded server that dies on startup because of a game-only mod: set the mod aside
+    // and try again (the "trial start" from SPEC §4.2). Bounded so it can never loop.
+    const modded = e.config.loader === 'fabric' || e.config.loader === 'forge' || e.config.loader === 'neoforge'
+    if (!wasRunning && modded && e.autoFixes < MAX_AUTO_FIXES) {
+      const dir = this.serverDir(e.config.id)
+      void findClientOnlyCulprit(info.tail, join(dir, 'mods')).then(async (culprit) => {
+        if (!culprit) return this.setStatus(e, 'crashed', reason)
+        e.autoFixes++
+        await mkdir(join(dir, 'mods-client-only'), { recursive: true })
+        await rename(culprit.file, join(dir, 'mods-client-only', basename(culprit.file)))
+        this.appLine(e, `${culprit.name} only works inside the game, not on servers. It was moved to "mods-client-only" and the server is starting again.`)
+        e.crashes = e.crashes.slice(0, -1)
+        this.start(e.config.id).catch((err: Error) => this.setStatus(e, 'crashed', err.message))
+      })
+      return
+    }
     if (wasRunning && e.crashes.length <= MAX_AUTO_RESTARTS) {
       this.appLine(e, `The server crashed. Restarting automatically (${e.crashes.length} of ${MAX_AUTO_RESTARTS})…`)
       this.setStatus(e, 'crashed', reason)
@@ -575,6 +660,41 @@ export class ServerManager extends EventEmitter<{
   async openFolder(id: string): Promise<void> {
     this.entry(id)
     await shell.openPath(this.serverDir(id))
+  }
+
+  // ------------------------------------------------------------ worlds
+
+  private worldStore(id: string): WorldStore {
+    return new WorldStore(this.serverDir(id), join(this.rootOf(id), 'worlds'))
+  }
+
+  worlds(id: string): Promise<WorldInfo[]> {
+    this.entry(id)
+    return this.worldStore(id).list()
+  }
+
+  /** Copies a world in as another (inactive) world of this server. */
+  async addWorld(id: string, source: string, name: string, ctx: TaskContext): Promise<void> {
+    this.entry(id)
+    ctx.step(`Copying ${name}`)
+    await this.worldStore(id).add(source, name, { signal: ctx.signal, onProgress: (d, t) => ctx.bytes(d, t) })
+    this.emit('worlds', id)
+  }
+
+  async activateWorld(id: string, slot: string): Promise<void> {
+    const e = this.entry(id)
+    if (e.proc) throw new Error('Stop the server before switching worlds.')
+    await this.worldStore(id).activate(slot)
+    this.appLine(e, 'Switched worlds. The new one loads on the next start.')
+    this.emit('worlds', id)
+  }
+
+  async removeWorld(id: string, slot: string): Promise<void> {
+    this.entry(id)
+    const info = (await this.worldStore(id).list()).find((w) => w.slot === slot)
+    if (info?.active) throw new Error("The active world can't be deleted. Switch to another world first.")
+    await this.worldStore(id).remove(slot)
+    this.emit('worlds', id)
   }
 
   // ------------------------------------------------------------ networking hooks

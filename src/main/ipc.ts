@@ -1,4 +1,6 @@
-import { BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import type { ImportRequest } from '@shared/imports'
+import type { ImportService } from './import/service'
 import { IPC, type AppInfo, type FolderKind, type ServerConfigPatch } from '@shared/ipc'
 import type { CreateServerRequest, SimpleProperties } from '@shared/servers'
 import type { SettingsStore } from './settings'
@@ -20,6 +22,7 @@ interface Deps {
   tasks: TaskManager
   servers: ServerManager
   network: NetworkManager
+  imports: ImportService
   mojang: MojangMeta
   appInfo: () => AppInfo
 }
@@ -47,7 +50,7 @@ function broadcast(channel: string, payload: unknown): void {
 const FOLDERS: FolderKind[] = ['library', 'dataRoot', 'logs']
 const str = (v: unknown): string => String(v)
 
-export function registerIpc({ settings, tasks, servers, network, mojang, appInfo }: Deps): void {
+export function registerIpc({ settings, tasks, servers, network, imports, mojang, appInfo }: Deps): void {
   handle(IPC.appInfo, () => appInfo())
   handle(IPC.appOpenFolder, async (which) => {
     if (!FOLDERS.includes(which as FolderKind)) return
@@ -124,4 +127,29 @@ export function registerIpc({ settings, tasks, servers, network, mojang, appInfo
     if (gateway && classifyIpv4(gateway) === 'private') await shell.openExternal(`http://${gateway}/`)
   })
   network.on('changed', (update) => broadcast(IPC.networkChanged, update))
+
+  handle(IPC.importsScan, () => imports.scan())
+  handle(IPC.importsPick, async (kind) => {
+    const win = BrowserWindow.getFocusedWindow()
+    const opts: Electron.OpenDialogOptions =
+      kind === 'folder'
+        ? { title: 'Choose a world, server or game folder', properties: ['openDirectory'] }
+        : {
+            title: 'Choose a world, server or modpack file',
+            properties: ['openFile'],
+            filters: [
+              { name: 'Worlds, servers and modpacks', extensions: ['zip', 'mrpack', 'gz', 'tgz', 'tar'] },
+              { name: 'All files', extensions: ['*'] }
+            ]
+          }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    return res.canceled ? null : (res.filePaths[0] ?? null)
+  })
+  handle(IPC.importsAnalyze, (path) => imports.analyze(str(path)))
+  handle(IPC.importsRun, (req) => imports.run(req as ImportRequest))
+  handle(IPC.importsDiscard, (id) => imports.discard(str(id)))
+  handle(IPC.worldsList, (id) => servers.worlds(str(id)))
+  handle(IPC.worldsActivate, (id, slot) => servers.activateWorld(str(id), str(slot)))
+  handle(IPC.worldsRemove, (id, slot) => servers.removeWorld(str(id), str(slot)))
+  servers.on('worlds', (id) => broadcast(IPC.worldsChanged, id))
 }

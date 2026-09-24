@@ -10,8 +10,18 @@ import { api } from '@/lib/api'
 import { errorMessage } from '@/lib/errors'
 import { t } from '@/strings'
 
+/** Warnings Minecraft prints on healthy servers; shown dimmed so they don't look like problems. */
+const HARMLESS = [
+  /Unable to locate English counter names in registry Perflib/,
+  /Win32Exception: The parameter is incorrect/,
+  /sun\.misc\.Unsafe|terminally deprecated method|will be removed in a future release|Please consider reporting this to the maintainers/,
+  /LanServerPinger/,
+  /^\s+at .*(Advapi32Util|HkeyPerformanceDataUtil|oshi\.)/
+]
+
 function lineClass(text: string, source: string): string {
   if (source === 'app') return 'text-sky-400'
+  if (HARMLESS.some((re) => re.test(text))) return 'text-neutral-500'
   if (/\bERROR\b|Exception|\bFATAL\b/.test(text)) return 'text-red-400'
   if (/\bWARN(ING)?\b/.test(text)) return 'text-amber-300'
   return 'text-neutral-200'

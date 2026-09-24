@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Clock, Plus, Users } from 'lucide-react'
+import { Clock, Download, Plus, Users } from 'lucide-react'
+import { useImportUi } from '@/components/imports/GlobalImport'
 import { timeAgo } from '@/lib/time'
 import { LOADER_LABELS, type ServerSummary } from '@shared/servers'
 import { Button } from '@/components/ui/button'
@@ -66,6 +67,7 @@ function ServerCard({ server }: { server: ServerSummary }) {
 export function ServersPage() {
   const servers = useServers((s) => s.servers)
   const loaded = useServers((s) => s.loaded)
+  const showImport = useImportUi((s) => s.show)
   const [creating, setCreating] = useState(false)
   const list = Object.values(servers).sort((a, b) =>
     a.config.createdAt.localeCompare(b.config.createdAt)
@@ -80,14 +82,25 @@ export function ServersPage() {
           <Logo className="size-16 opacity-90" />
           <h2 className="text-lg font-semibold">{t.servers.emptyTitle}</h2>
           <p className="max-w-sm text-sm text-muted-foreground">{t.servers.emptyBody}</p>
-          <Button size="lg" className="mt-2" onClick={() => setCreating(true)}>
-            <Plus />
-            {t.servers.create}
-          </Button>
+          <div className="mt-2 flex gap-2">
+            <Button size="lg" onClick={() => setCreating(true)}>
+              <Plus />
+              {t.servers.create}
+            </Button>
+            <Button size="lg" variant="outline" onClick={() => showImport()}>
+              <Download />
+              {t.imports.button}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">{t.imports.dropHere}</p>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => showImport()}>
+              <Download />
+              {t.imports.button}
+            </Button>
             <Button onClick={() => setCreating(true)}>
               <Plus />
               {t.servers.create}

@@ -67,7 +67,7 @@ export function getText(url: string, signal?: AbortSignal): Promise<string> {
 }
 
 export interface Checksum {
-  algorithm: 'sha1' | 'sha256'
+  algorithm: 'sha1' | 'sha256' | 'sha512'
   hex: string
 }
 

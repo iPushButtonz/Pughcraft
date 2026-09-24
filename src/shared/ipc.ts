@@ -1,5 +1,6 @@
 import type { Settings, SettingsPatch } from './settings'
 import type { Audience, DoctorReport, PlayitStatus, ServerNetworkView } from './network'
+import type { FoundItem, ImportAnalysis, ImportRequest, WorldInfo } from './imports'
 import type { TaskSnapshot } from './tasks'
 import type {
   ConsoleLine,
@@ -94,6 +95,22 @@ export interface PughcraftApi {
     openRouterPage(id: string): Promise<void>
     onChanged(listener: (update: { id: string; view: ServerNetworkView }) => void): () => void
   }
+  imports: {
+    /** Worlds and modded instances found in launchers installed on this PC (read-only). */
+    scan(): Promise<FoundItem[]>
+    pick(kind: 'file' | 'folder'): Promise<string | null>
+    /** The real path of a file dropped onto the window. */
+    pathForFile(file: File): string
+    analyze(path: string): Promise<ImportAnalysis>
+    run(request: ImportRequest): Promise<{ serverId: string; taskId: string }>
+    discard(analysisId: string): Promise<void>
+  }
+  worlds: {
+    list(serverId: string): Promise<WorldInfo[]>
+    activate(serverId: string, slot: string): Promise<void>
+    remove(serverId: string, slot: string): Promise<void>
+    onChanged(listener: (serverId: string) => void): () => void
+  }
 }
 
 /** IPC channel names, shared so main and preload can't drift apart. */
@@ -141,5 +158,14 @@ export const IPC = {
   networkUnlinkPlayit: 'network:unlink-playit',
   networkSetMethod: 'network:set-method',
   networkOpenRouterPage: 'network:open-router-page',
-  networkChanged: 'network:changed'
+  networkChanged: 'network:changed',
+  importsScan: 'imports:scan',
+  importsPick: 'imports:pick',
+  importsAnalyze: 'imports:analyze',
+  importsRun: 'imports:run',
+  importsDiscard: 'imports:discard',
+  worldsList: 'worlds:list',
+  worldsActivate: 'worlds:activate',
+  worldsRemove: 'worlds:remove',
+  worldsChanged: 'worlds:changed'
 } as const

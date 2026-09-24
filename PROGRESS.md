@@ -68,9 +68,36 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
   - EULA prompt added to Start (it was only in Create before).
   - 48 unit tests pass.
 
+- 2026-09-24: **Step 4 ★ — import** built and verified:
+  - **Detection** (`import/analyze.ts`):
+    - worlds (folder/zip/Realms .tar.gz, level.dat via @xmcl/nbt, brands → loader hint);
+    - server folders (Neo/Forge libraries, Fabric, Paper, vanilla `version.json`, custom jars);
+    - instances (Prism mmc-pack, CurseForge app, Modrinth App profile.json);
+    - `.mrpack` (env.server);
+    - CurseForge zips blocked with a server-pack tip (no API key yet);
+    - Bedrock and .jar are refused.
+  - **Mods** (`import/mods.ts`): reads fabric/quilt/neoforge/forge toml and mcmod.info, including jar-in-jar ids.
+    - Sides are decided by the mod itself → Modrinth by sha1 → the built-in list. A mod a server mod needs is never removed.
+    - Missing dependencies and duplicates are reported. Duplicates: the newest is kept, the rest go to `mods-disabled/`.
+  - **Trial start:** a startup crash from a game-only class moves that jar to `mods-client-only/` and retries (max 10).
+  - **Crash analyzer** names missing mods, wrong loader, duplicates and newer worlds.
+  - **Import screen:** drop anywhere or pick a file/folder; "Found on this PC" lists launcher worlds and instances; review screen; EULA; progress.
+    - Worlds ask "new server or add to existing" (owner's choice).
+    - Adding a world to a server on an older version is refused.
+  - **Worlds tab:** list, switch (rename-based, server must be stopped), delete to Recycle Bin, add.
+  - **Verified on real data:**
+    - Owner's world zip → Fabric 26.2 server, running.
+    - Owner's Prism "modded" instance (58 mods) → 48 on the server; 6 game-only left out; 4 duplicates set aside; running.
+    - Server-folder import reused the existing launcher and ran in 25 s.
+    - World add, switch and switch back all work.
+    - The 26.3→26.2 guard fires. Realms tar.gz and the CF message are correct.
+  - **Not yet tested live:** `.mrpack` download (needs a real pack; ask the owner before downloading one).
+  - The console dims known-harmless warnings (Perflib, Unsafe).
+  - Caught and fixed PowerShell encoding damage (see memory: no PowerShell text rewrites).
+
 ## Next
-- Step 3 approved by the owner 2026-09-24.
-- **Step 4 ★: import** (main test: owner's world zip). Owner decisions 2026-09-24:
+- Step 4 demo → owner feedback, then **step 5 ★: backups**.
+- **Step 4 background (done).** Owner decisions 2026-09-24:
   - **Dropping a single world asks:** "Make a new server" (pre-selected) or "Add to <existing server> as another world".
   - **The Import screen scans installed launchers when it opens.** Covers the official launcher, Prism, the CurseForge app and the Modrinth App. It's local-only, read-only, and copies files, never changes them.
 - **Step 3 background (done).** Owner decisions (2026-09-23):
@@ -90,6 +117,12 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
     - Downloading the playit agent for a test needs the owner's OK first.
   - Look into Forge's "LanServerPinger: Network is unreachable" warning on this PC (maybe Proton VPN or IPv6).
 - Test servers cleaned up 2026-09-23 (8 moved to Recycle Bin). Kept: "Transfer world test" (owner's 26.2 world copy).
+
+## Test environment caveat (important)
+- Processes Claude launches run inside the Claude app's MSIX sandbox. `%APPDATA%\Pughcraft` is redirected to `C:\Users\nicho\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Pughcraft`, although paths look normal from inside.
+- So all test data (the owner's world copy, Java, the playit link) lives only there. An owner-run build starts fresh.
+- Firewall program-path rules must be verified with an owner-run build.
+- bore: tested 2026-09-24. Defender flagged it "Trojan:Win32/Kepavll!rfn" and removed it. Now hidden on Windows (SPEC §7.2, owner-approved).
 
 ## Moved / deferred (and why)
 - Library "move to another folder" moved from step 2 to step 6. Its move logic is easier to get right alongside the file browser.

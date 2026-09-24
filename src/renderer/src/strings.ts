@@ -35,6 +35,75 @@ export const t = {
       crashed: 'Crashed'
     }
   },
+  imports: {
+    button: 'Import',
+    title: 'Import a world, server or modpack',
+    dropHere: 'Drop a world, server folder or modpack here',
+    dropHint: 'Worlds (folders, .zip, Realm backups), server folders, server packs and Modrinth packs (.mrpack).',
+    dropOverlay: 'Drop to import',
+    chooseFile: 'Choose a file…',
+    chooseFolder: 'Choose a folder…',
+    foundTitle: 'Found on this PC',
+    foundHint: 'From Minecraft launchers installed here. Pughcraft only copies them; your originals are never changed.',
+    foundNone: 'No worlds or modpacks found in the usual launcher folders.',
+    scanning: 'Looking for worlds and modpacks…',
+    checking: (label: string) => `Checking ${label}…`,
+    kinds: {
+      world: 'World',
+      server: 'Server folder',
+      mrpack: 'Modrinth modpack',
+      curseforge: 'CurseForge modpack',
+      instance: 'Game instance'
+    } as Record<string, string>,
+    launchers: { official: 'Minecraft Launcher', prism: 'Prism', curseforge: 'CurseForge', modrinth: 'Modrinth App' } as Record<string, string>,
+    inInstance: (name: string) => `in ${name}`,
+    reviewTitle: 'Check before importing',
+    back: 'Back',
+    where: 'Where should this world go?',
+    newServer: 'Make a new server for it',
+    existingServer: 'Add it to an existing server as another world',
+    pickServer: 'Choose a server',
+    versionMismatch: (server: string, world: string) =>
+      `That server runs Minecraft ${server}; this world is from ${world}. Older worlds are upgraded when loaded, which can't be undone on that copy.`,
+    worldTooNew: (server: string, world: string) =>
+      `This world is from Minecraft ${world}, newer than that server (${server}). Servers can't load newer worlds. Make a new server for it instead.`,
+    mods: (total: number, clientOnly: number, duplicates: number) => {
+      const onServer = total - clientOnly - duplicates
+      const parts = [
+        clientOnly > 0 ? `${clientOnly} only work in the game` : null,
+        duplicates > 0 ? `${duplicates} ${duplicates === 1 ? 'is a duplicate' : 'are duplicates'}` : null
+      ].filter(Boolean)
+      return parts.length
+        ? `${total} mods: ${onServer} go on the server (${parts.join(', ')} and ${clientOnly + duplicates === 1 ? 'is' : 'are'} left out).`
+        : `${total} mods, all go on the server.`
+    },
+    leaveOut: 'Leave out mods that only work in the game (recommended)',
+    showMods: 'Show mods',
+    hideMods: 'Hide mods',
+    sides: { client: 'Game only', server: 'Server', both: 'Both', unknown: 'Unknown' } as Record<string, string>,
+    missing: 'Missing mods these need:',
+    missingItem: (id: string, by: string) => `${id} (needed by ${by})`,
+    bringWorld: 'Bring a world along',
+    noWorld: 'No, start a new world',
+    plugins: (n: number) => `${n} plugin${n === 1 ? '' : 's'}`,
+    size: 'Size',
+    import: 'Import',
+    importing: 'Importing…',
+    addedWorld: 'World added. Switch to it in the Worlds tab.'
+  },
+  worlds: {
+    tab: 'Worlds',
+    active: 'Active',
+    activate: 'Use this world',
+    stopFirst: 'Stop the server to switch worlds.',
+    delete: 'Delete',
+    deleteTitle: (name: string) => `Delete “${name}”?`,
+    deleteBody: 'It moves to the Recycle Bin, so you can still get it back from there.',
+    add: 'Add a world',
+    none: 'This server has no world yet. It creates one on first start.',
+    lastPlayed: (when: string) => `Last played ${when}`,
+    version: (v: string) => `Minecraft ${v}`
+  },
   eula: {
     title: 'One thing before the first start',
     body: 'Minecraft servers may only run if you agree to Mojang’s End User License Agreement. You only need to do this once.',

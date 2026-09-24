@@ -30,6 +30,7 @@ import { CopyField } from '@/components/CopyField'
 import { AudienceChooser } from '@/components/network/AudienceChooser'
 import { NetworkPanel, useServerNetwork } from '@/components/network/NetworkPanel'
 import { ShareButton } from '@/components/network/ShareButton'
+import { WorldsPanel } from '@/components/servers/WorldsPanel'
 import { useServer } from '@/stores/servers'
 import { useTasks } from '@/stores/tasks'
 import { useNav } from '@/stores/nav'
@@ -234,6 +235,9 @@ export function ServerPage({ id }: { id: string }) {
           <TabsTrigger value="network" disabled={!c.installed}>
             {t.network.tab}
           </TabsTrigger>
+          <TabsTrigger value="worlds" disabled={!c.installed}>
+            {t.worlds.tab}
+          </TabsTrigger>
           <TabsTrigger value="console">{d.tabs.console}</TabsTrigger>
           <TabsTrigger value="settings" disabled={server.status === 'installing'}>
             {d.tabs.settings}
@@ -244,6 +248,9 @@ export function ServerPage({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="network" className="pt-2">
           <NetworkPanel server={server} />
+        </TabsContent>
+        <TabsContent value="worlds" className="pt-2">
+          <WorldsPanel server={server} />
         </TabsContent>
         <TabsContent value="console" className="min-h-[24rem] flex-1 pt-2">
           <ConsoleView server={server} />

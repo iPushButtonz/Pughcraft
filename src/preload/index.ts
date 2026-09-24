@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import { IPC, type PughcraftApi } from '@shared/ipc'
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
@@ -67,6 +67,20 @@ const api: PughcraftApi = {
     setMethod: (id, method, extra) => invoke(IPC.networkSetMethod, id, method, extra),
     openRouterPage: (id) => invoke(IPC.networkOpenRouterPage, id),
     onChanged: (listener) => subscribe(IPC.networkChanged, listener)
+  },
+  imports: {
+    scan: () => invoke(IPC.importsScan),
+    pick: (kind) => invoke(IPC.importsPick, kind),
+    pathForFile: (file) => webUtils.getPathForFile(file),
+    analyze: (path) => invoke(IPC.importsAnalyze, path),
+    run: (request) => invoke(IPC.importsRun, request),
+    discard: (id) => invoke(IPC.importsDiscard, id)
+  },
+  worlds: {
+    list: (serverId) => invoke(IPC.worldsList, serverId),
+    activate: (serverId, slot) => invoke(IPC.worldsActivate, serverId, slot),
+    remove: (serverId, slot) => invoke(IPC.worldsRemove, serverId, slot),
+    onChanged: (listener) => subscribe(IPC.worldsChanged, listener)
   }
 }
 

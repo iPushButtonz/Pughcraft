@@ -28,6 +28,7 @@ import { ServerManager } from './servers/manager'
 import { NetworkManager } from './net/network'
 import { PlayitManager } from './net/playit'
 import { BoreManager } from './net/bore'
+import { ImportService } from './import/service'
 
 configureAppPaths()
 
@@ -87,7 +88,9 @@ async function start(): Promise<void> {
     },
     paths: { library: libraryRoot(), dataRoot: dataRoot(), logs: logsDir() }
   })
-  registerIpc({ settings, tasks, servers, network, mojang, appInfo })
+  const imports = new ImportService({ tasks, servers, mojang, stagingDir: join(libraryRoot(), 'cache', 'import') })
+  await imports.init()
+  registerIpc({ settings, tasks, servers, network, imports, mojang, appInfo })
 
   settings.on('change', (next, prev) => {
     if (next.theme !== prev.theme) nativeTheme.themeSource = next.theme

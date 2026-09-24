@@ -42,6 +42,8 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
+    "@xmcl/mod-parser": "3.4.2",
+    "@xmcl/nbt": "3.0.2",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.47.0",

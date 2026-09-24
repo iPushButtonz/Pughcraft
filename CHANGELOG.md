@@ -38,6 +38,14 @@ All notable changes to Pughcraft. Versions follow [Semantic Versioning](https://
   - Detects Tailscale/ZeroTier addresses. Advanced: bore and custom tunnels.
   - "Share with friends" copies a ready-to-paste invite.
 - The Minecraft EULA is asked on first start if it hasn't been agreed to yet.
+- Import:
+  - Drop a world, Realm backup, server folder, server pack or Modrinth modpack anywhere on the window. You can also pick one from worlds and modpacks found in Minecraft Launcher, Prism, the CurseForge app and the Modrinth App.
+  - The app works out the version and server type and shows a review screen before anything is created. Every step shows progress.
+  - Worlds can become a new server or be added to an existing one.
+  - Mods that only work in the game are left out automatically. Duplicate mods are set aside, never deleted.
+  - If a game-only mod still breaks the first start, it is moved aside and the server tries again.
+- Worlds tab: keep several worlds per server and switch between them instantly.
+- Crash messages now name the mod that's missing or doesn't belong, and explain worlds from newer versions.
 
 ### Changed
 - Brand green is a little brighter.
