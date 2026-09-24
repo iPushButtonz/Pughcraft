@@ -3,6 +3,7 @@ import { ExternalLink, FolderOpen } from 'lucide-react'
 import { APP_NAME, LICENSE_NAME, MOJANG_DISCLAIMER, REPO_URL } from '@shared/brand'
 import type { AppInfo, FolderKind } from '@shared/ipc'
 import type { CloseBehavior, ThemeSetting } from '@shared/settings'
+import type { OutsideChecks } from '@shared/network'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -92,6 +93,21 @@ export function SettingsPage() {
             />
           </SettingRow>
         )}
+      </SettingSection>
+
+      <SettingSection title={t.settings.privacy}>
+        <SettingRow label={t.settings.outsideChecks} hint={t.settings.outsideChecksHint} stacked>
+          <Segmented<OutsideChecks>
+            label={t.settings.outsideChecks}
+            value={settings.outsideChecks}
+            options={[
+              { value: 'ask', label: t.settings.outsideAsk },
+              { value: 'on-demand', label: t.settings.outsideOnDemand },
+              { value: 'never', label: t.settings.outsideNever }
+            ]}
+            onChange={(v) => void update({ outsideChecks: v })}
+          />
+        </SettingRow>
       </SettingSection>
 
       <SettingSection title={t.settings.appearance}>

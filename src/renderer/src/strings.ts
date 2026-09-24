@@ -90,11 +90,68 @@ export const t = {
       crashed: 'The server stopped unexpectedly.'
     },
     joinHere: 'Join from this PC',
+    howToJoin: 'How to join',
     joinHereHint: 'In Minecraft, choose Multiplayer → Add Server and enter this address.',
     copy: 'Copy',
     copied: 'Copied',
     playersOnline: 'Players online',
     nobodyOnline: 'Nobody is online right now.'
+  },
+  network: {
+    tab: 'Network',
+    chooserTitle: 'Who’s going to play on this server?',
+    chooserHint: 'You can change this any time in the Network tab.',
+    audience: {
+      self: { label: 'Just me', hint: 'Only this PC can join. Nothing is opened to anyone else.' },
+      lan: { label: 'People on my Wi-Fi', hint: 'Anyone on the same home network can join.' },
+      internet: {
+        label: 'Friends anywhere',
+        hint: 'Friends can join over the internet. The app sets up your router for you.'
+      }
+    },
+    addresses: 'Addresses',
+    thisPc: 'This PC',
+    sameWifi: 'Same Wi-Fi',
+    internet: 'Internet',
+    notAvailable: 'Not available',
+    firewall: 'Firewall',
+    firewallOk: 'Friends are allowed through.',
+    firewallFix: 'Allow through firewall',
+    firewallFixHint: 'Your PC will ask for administrator permission once.',
+    firewallFixed: 'Done. Friends are now allowed through the firewall.',
+    firewallCancelled: 'No changes were made (the permission prompt was closed).',
+    firewallFailed: 'Windows didn’t accept the change. Check the app log for details.',
+    publicNetwork:
+      'Windows treats this network as “Public”. That’s fine: the firewall button above covers it.',
+    retry: 'Try again',
+    doctor: 'Connection Doctor',
+    doctorHint: 'Checks every step between your server and your friends, and tells you exactly what to fix.',
+    runDoctor: 'Run Connection Doctor',
+    rerun: 'Run again',
+    details: 'Show details',
+    hideDetails: 'Hide details',
+    share: 'Share with friends',
+    shared: 'Copied! Paste it to your friends.',
+    shareText: (name: string, address: string, version: string) =>
+      `Join my Minecraft server "${name}"!\nAddress: ${address}\nVersion: ${version}\nIn Minecraft: Multiplayer → Add Server → paste the address.`,
+    consentTitle: 'Test your server from the internet?',
+    consentBody:
+      'To check that friends really can reach you, the Doctor can ask two outside services to try: api.ipify.org (sees your public address) and api.mcstatus.io (tries to connect to your server). Both see your public IP address. Results can be up to a minute old.',
+    consentWithout:
+      'Without this, the Doctor still checks everything on your PC and router, but can only guess whether the internet can reach you.',
+    consentYes: 'Allow when I run the Doctor',
+    consentYesHint: 'Recommended',
+    consentNotNow: 'Not now',
+    consentNever: 'Never',
+    fix: {
+      'start-server': 'Start the server',
+      firewall: 'Allow through firewall',
+      'retry-router': 'Try again',
+      tunnel: null,
+      guide: null,
+      vpn: null,
+      'choose-audience': 'Choose who can join'
+    } as Record<string, string | null>
   },
   console: {
     placeholder: 'Type a command, e.g. say Hello or op YourName',
@@ -159,6 +216,13 @@ export const t = {
     startAtLoginHint: 'Opens quietly in the tray.',
     preventSleep: 'Keep the PC awake while a server is running',
     preventSleepHint: 'If the PC goes to sleep, everyone on your server is disconnected.',
+    privacy: 'Privacy',
+    outsideChecks: 'Test servers from the internet',
+    outsideChecksHint:
+      'Lets the Connection Doctor ask api.ipify.org and api.mcstatus.io to reach your server from outside. They see your public IP address.',
+    outsideAsk: 'Ask me',
+    outsideOnDemand: 'When I run the Doctor',
+    outsideNever: 'Never',
     appearance: 'Appearance',
     theme: 'Theme',
     themeSystem: 'Match my PC',

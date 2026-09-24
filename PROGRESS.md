@@ -40,9 +40,23 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
   - 15 unit tests pass. Production build OK.
 
 ## Next
-- **Step 3 ★: networking**
-  - LAN IP, UPnP/NAT-PMP, firewall rule (one admin prompt), Connection Doctor, tunnels (playit.gg default, bore, custom), port-forward guide, VPN detection, Share button.
+- **Step 3 ★: networking.** Owner decisions (2026-09-23):
+  - **Who can join is asked on first start:** "Just me / People on my Wi-Fi / Friends anywhere", changeable in the Network tab. "Friends anywhere" walks the ladder automatically.
+  - **Host directly off the PC first** (UPnP/NAT-PMP; no extra apps, one click).
+  - **playit.gg is the fallback,** built in. Its agent is downloaded and run invisibly; there is a one-time browser link (guest account OK). bore and custom tunnels stay as Advanced options (SPEC §7.2).
+  - **Planned sub-order:**
+    1. LAN + Network tab + first-start prompt + Share.
+    2. Firewall.
+    3. UPnP/NAT-PMP + CGNAT.
+    4. Outside checks + Doctor.
+    5. playit.
+    6. Guide/VPN/bore/custom.
+  - **Safety rules for testing:**
+    - Claude must not add firewall rules or open router ports itself. Read-only checks are fine.
+    - The owner clicks the app's buttons for real firewall/UPnP changes (UAC prompts are theirs).
+    - Downloading the playit agent for a test needs the owner's OK first.
   - Look into Forge's "LanServerPinger: Network is unreachable" warning on this PC (maybe Proton VPN or IPv6).
+- Test servers cleaned up 2026-09-23 (8 moved to Recycle Bin). Kept: "Transfer world test" (owner's 26.2 world copy).
 
 ## Moved / deferred (and why)
 - Library "move to another folder" moved from step 2 to step 6. Its move logic is easier to get right alongside the file browser.

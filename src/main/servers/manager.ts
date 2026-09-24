@@ -13,6 +13,7 @@ import type {
   ServerSummary,
   SimpleProperties
 } from '@shared/servers'
+import { DEFAULT_NETWORK, type ServerNetworkConfig } from '@shared/network'
 import type { SettingsStore } from '../settings'
 import type { TaskContext, TaskManager } from '../tasks'
 import { temurinMajorFor, type JavaManager } from '../core/java'
@@ -574,5 +575,39 @@ export class ServerManager extends EventEmitter<{
   async openFolder(id: string): Promise<void> {
     this.entry(id)
     await shell.openPath(this.serverDir(id))
+  }
+
+  // ------------------------------------------------------------ networking hooks
+
+  get(id: string): ServerSummary {
+    return this.summary(this.entry(id))
+  }
+
+  networkConfig(id: string): ServerNetworkConfig {
+    return { ...DEFAULT_NETWORK, ...this.entry(id).config.network }
+  }
+
+  async setNetwork(id: string, patch: Partial<ServerNetworkConfig>): Promise<ServerNetworkConfig> {
+    const e = this.entry(id)
+    e.config.network = { ...this.networkConfig(id), ...patch }
+    await this.saveConfig(e)
+    this.changed(e)
+    return e.config.network
+  }
+
+  /** The java executable this server runs with, if it's already on disk. */
+  async javaPathFor(id: string): Promise<string | null> {
+    const c = this.entry(id).config
+    if (c.javaPath) return c.javaPath
+    const wanted = temurinMajorFor(c.javaMajor || 21)
+    return (await this.deps.java.installed()).find((j) => j.major === wanted)?.path ?? null
+  }
+
+  /** Every managed java executable plus every port in use, for the one-time firewall fix. */
+  async firewallTargets(): Promise<{ javaPaths: string[]; ports: number[] }> {
+    return {
+      javaPaths: (await this.deps.java.installed()).map((j) => j.path),
+      ports: [...new Set([...this.entries.values()].map((e) => e.config.port))]
+    }
   }
 }

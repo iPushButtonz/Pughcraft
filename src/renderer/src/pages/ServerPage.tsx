@@ -27,6 +27,9 @@ import { ConsoleView } from '@/components/servers/ConsoleView'
 import { ServerSettingsPanel } from '@/components/servers/ServerSettingsPanel'
 import { TaskProgress } from '@/components/TaskProgress'
 import { CopyField } from '@/components/CopyField'
+import { AudienceChooser } from '@/components/network/AudienceChooser'
+import { NetworkPanel, useServerNetwork } from '@/components/network/NetworkPanel'
+import { ShareButton } from '@/components/network/ShareButton'
 import { useServer } from '@/stores/servers'
 import { useTasks } from '@/stores/tasks'
 import { useNav } from '@/stores/nav'
@@ -44,11 +47,52 @@ async function attempt(action: () => Promise<unknown>): Promise<void> {
   }
 }
 
+function JoinCard({ server }: { server: ServerSummary }) {
+  const view = useServerNetwork(server.config.id)
+  if (!view) return null
+  const audience = view.config.audience
+  const rows: { label: string; value: string | null; note?: string }[] = [
+    { label: t.network.thisPc, value: view.addresses.thisPc }
+  ]
+  if (audience === 'lan' || audience === 'internet') rows.push({ label: t.network.sameWifi, value: view.addresses.lan })
+  if (audience === 'internet') {
+    rows.push({
+      label: t.network.internet,
+      value: view.addresses.internet,
+      note: view.addresses.internet ? undefined : view.internet.message
+    })
+  }
+  return (
+    <section className="space-y-3 rounded-xl border bg-card p-5">
+      <h3 className="text-sm font-semibold">{d.howToJoin}</h3>
+      {rows.map((r) => (
+        <div key={r.label} className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{r.label}</p>
+          {r.value ? <CopyField value={r.value} /> : <p className="text-sm text-muted-foreground">{r.note ?? t.network.notAvailable}</p>}
+        </div>
+      ))}
+      <p className="text-xs text-muted-foreground">{d.joinHereHint}</p>
+    </section>
+  )
+}
+
 function Overview({ server }: { server: ServerSummary }) {
   const task = useTasks((s) => (server.taskId ? s.tasks[server.taskId] : undefined))
-  const address = server.config.port === 25565 ? 'localhost' : `localhost:${server.config.port}`
+  const audience = server.config.network?.audience ?? 'unset'
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {audience === 'unset' && (
+        <section className="space-y-3 rounded-xl border border-primary/40 bg-card p-5 lg:col-span-2">
+          <h3 className="text-sm font-semibold">{t.network.chooserTitle}</h3>
+          <AudienceChooser
+            value="unset"
+            onChoose={(choice) =>
+              void api.network.setAudience(server.config.id, choice).catch((err) => toast.error(errorMessage(err)))
+            }
+          />
+          <p className="text-xs text-muted-foreground">{t.network.chooserHint}</p>
+        </section>
+      )}
       <section className="space-y-3 rounded-xl border bg-card p-5">
         <StatusBadge status={server.status} />
         <p className="text-sm text-muted-foreground">{d.statusLine[server.status]}</p>
@@ -62,11 +106,7 @@ function Overview({ server }: { server: ServerSummary }) {
           </div>
         )}
       </section>
-      <section className="space-y-3 rounded-xl border bg-card p-5">
-        <h3 className="text-sm font-semibold">{d.joinHere}</h3>
-        <CopyField value={address} />
-        <p className="text-xs text-muted-foreground">{d.joinHereHint}</p>
-      </section>
+      <JoinCard server={server} />
       {server.status === 'running' && (
         <section className="space-y-3 rounded-xl border bg-card p-5 lg:col-span-2">
           <h3 className="text-sm font-semibold">
@@ -128,6 +168,7 @@ export function ServerPage({ id }: { id: string }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {c.installed && <ShareButton server={server} />}
           <PowerButtons server={server} showRestart />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -190,6 +231,9 @@ export function ServerPage({ id }: { id: string }) {
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
         <TabsList>
           <TabsTrigger value="overview">{d.tabs.overview}</TabsTrigger>
+          <TabsTrigger value="network" disabled={!c.installed}>
+            {t.network.tab}
+          </TabsTrigger>
           <TabsTrigger value="console">{d.tabs.console}</TabsTrigger>
           <TabsTrigger value="settings" disabled={server.status === 'installing'}>
             {d.tabs.settings}
@@ -197,6 +241,9 @@ export function ServerPage({ id }: { id: string }) {
         </TabsList>
         <TabsContent value="overview" className="pt-2">
           <Overview server={server} />
+        </TabsContent>
+        <TabsContent value="network" className="pt-2">
+          <NetworkPanel server={server} />
         </TabsContent>
         <TabsContent value="console" className="min-h-[24rem] flex-1 pt-2">
           <ConsoleView server={server} />

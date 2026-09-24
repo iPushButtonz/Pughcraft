@@ -53,6 +53,14 @@ const api: PughcraftApi = {
     onChanged: (listener) => subscribe(IPC.serversChanged, listener),
     onRemoved: (listener) => subscribe(IPC.serversRemoved, listener),
     onConsole: (listener) => subscribe(IPC.serversConsoleLines, listener)
+  },
+  network: {
+    view: (id, refreshFirewall) => invoke(IPC.networkView, id, refreshFirewall),
+    setAudience: (id, audience) => invoke(IPC.networkSetAudience, id, audience),
+    retry: (id) => invoke(IPC.networkRetry, id),
+    fixFirewall: () => invoke(IPC.networkFixFirewall),
+    doctor: (id) => invoke(IPC.networkDoctor, id),
+    onChanged: (listener) => subscribe(IPC.networkChanged, listener)
   }
 }
 

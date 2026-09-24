@@ -25,6 +25,7 @@ import { configureHttp } from './core/http'
 import { JavaManager } from './core/java'
 import { MojangMeta } from './core/mojang'
 import { ServerManager } from './servers/manager'
+import { NetworkManager } from './net/network'
 
 configureAppPaths()
 
@@ -51,6 +52,8 @@ async function start(): Promise<void> {
   const servers = new ServerManager({ libraryRoot, settings, tasks, java, mojang })
   await servers.load()
   lifecycle.onShutdown('servers', () => servers.stopAll(), 90_000)
+  const network = new NetworkManager({ servers, settings, appPath: process.execPath })
+  lifecycle.onShutdown('network', () => network.shutdown(), 15_000)
 
   // Keep the PC awake while any server runs, unless the user turned that off.
   let sleepBlocker: number | null = null
@@ -76,7 +79,7 @@ async function start(): Promise<void> {
     },
     paths: { library: libraryRoot(), dataRoot: dataRoot(), logs: logsDir() }
   })
-  registerIpc({ settings, tasks, servers, mojang, appInfo })
+  registerIpc({ settings, tasks, servers, network, mojang, appInfo })
 
   settings.on('change', (next, prev) => {
     if (next.theme !== prev.theme) nativeTheme.themeSource = next.theme

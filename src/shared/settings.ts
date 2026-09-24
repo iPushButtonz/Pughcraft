@@ -14,6 +14,11 @@ export interface Settings {
   eulaAcceptedAt: string | null
   /** Keep the PC awake while any server is running. */
   preventSleep: boolean
+  /**
+   * Whether the Connection Doctor may ask outside services (public-IP lookup, mcstatus.io)
+   * to test the server from the internet. 'ask' until the user decides.
+   */
+  outsideChecks: 'ask' | 'on-demand' | 'never'
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'schema'>>
@@ -26,7 +31,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   trayHintShown: false,
   eulaAcceptedAt: null,
-  preventSleep: true
+  preventSleep: true,
+  outsideChecks: 'ask'
 }
 
 const oneOf =
@@ -42,7 +48,8 @@ const validators: { [K in keyof SettingsPatch]-?: (v: unknown) => boolean } = {
   theme: oneOf('system', 'light', 'dark'),
   trayHintShown: isBool,
   eulaAcceptedAt: (v) => v === null || (typeof v === 'string' && !Number.isNaN(Date.parse(v))),
-  preventSleep: isBool
+  preventSleep: isBool,
+  outsideChecks: oneOf('ask', 'on-demand', 'never')
 }
 
 /** Keeps only known keys with valid values; anything else is dropped. */

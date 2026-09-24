@@ -1,4 +1,5 @@
 import type { Settings, SettingsPatch } from './settings'
+import type { Audience, DoctorReport, ServerNetworkView } from './network'
 import type { TaskSnapshot } from './tasks'
 import type {
   ConsoleLine,
@@ -72,6 +73,14 @@ export interface PughcraftApi {
     onRemoved(listener: (id: string) => void): () => void
     onConsole(listener: (batch: { id: string; lines: ConsoleLine[] }) => void): () => void
   }
+  network: {
+    view(id: string, refreshFirewall?: boolean): Promise<ServerNetworkView>
+    setAudience(id: string, audience: Exclude<Audience, 'unset'>): Promise<ServerNetworkView>
+    retry(id: string): Promise<void>
+    fixFirewall(): Promise<'fixed' | 'cancelled' | 'failed'>
+    doctor(id: string): Promise<DoctorReport>
+    onChanged(listener: (update: { id: string; view: ServerNetworkView }) => void): () => void
+  }
 }
 
 /** IPC channel names, shared so main and preload can't drift apart. */
@@ -107,5 +116,11 @@ export const IPC = {
   serversOpenFolder: 'servers:open-folder',
   serversChanged: 'servers:changed',
   serversRemoved: 'servers:removed',
-  serversConsoleLines: 'servers:console-lines'
+  serversConsoleLines: 'servers:console-lines',
+  networkView: 'network:view',
+  networkSetAudience: 'network:set-audience',
+  networkRetry: 'network:retry',
+  networkFixFirewall: 'network:fix-firewall',
+  networkDoctor: 'network:doctor',
+  networkChanged: 'network:changed'
 } as const

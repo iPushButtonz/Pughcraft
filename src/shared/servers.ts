@@ -1,3 +1,5 @@
+import type { ServerNetworkConfig } from './network'
+
 export type Loader = 'vanilla' | 'paper' | 'fabric' | 'forge' | 'neoforge' | 'custom'
 
 export const LOADER_LABELS: Record<Loader, string> = {
@@ -36,6 +38,8 @@ export interface ServerConfig {
   installed: boolean
   createdAt: string
   lastStartedAt: string | null
+  /** Who can join and how. Missing in configs from before networking existed. */
+  network?: ServerNetworkConfig
 }
 
 export type ServerStatus = 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'crashed'

@@ -5,6 +5,7 @@ import type { SettingsStore } from './settings'
 import type { TaskManager } from './tasks'
 import type { ServerManager } from './servers/manager'
 import type { MojangMeta } from './core/mojang'
+import type { NetworkManager } from './net/network'
 import { loaderAvailability } from './servers/catalog'
 import { memoryInfo } from './servers/system'
 import { openExternalSafe } from './external'
@@ -17,6 +18,7 @@ interface Deps {
   settings: SettingsStore
   tasks: TaskManager
   servers: ServerManager
+  network: NetworkManager
   mojang: MojangMeta
   appInfo: () => AppInfo
 }
@@ -44,7 +46,7 @@ function broadcast(channel: string, payload: unknown): void {
 const FOLDERS: FolderKind[] = ['library', 'dataRoot', 'logs']
 const str = (v: unknown): string => String(v)
 
-export function registerIpc({ settings, tasks, servers, mojang, appInfo }: Deps): void {
+export function registerIpc({ settings, tasks, servers, network, mojang, appInfo }: Deps): void {
   handle(IPC.appInfo, () => appInfo())
   handle(IPC.appOpenFolder, async (which) => {
     if (!FOLDERS.includes(which as FolderKind)) return
@@ -90,4 +92,15 @@ export function registerIpc({ settings, tasks, servers, mojang, appInfo }: Deps)
   servers.on('changed', (summary) => broadcast(IPC.serversChanged, summary))
   servers.on('removed', (id) => broadcast(IPC.serversRemoved, id))
   servers.on('console', (batch) => broadcast(IPC.serversConsoleLines, batch))
+
+  const audiences = ['self', 'lan', 'internet'] as const
+  handle(IPC.networkView, (id, refresh) => network.view(str(id), refresh === true))
+  handle(IPC.networkSetAudience, (id, audience) => {
+    if (!audiences.includes(audience as (typeof audiences)[number])) throw new Error('Unknown choice.')
+    return network.setAudience(str(id), audience as (typeof audiences)[number])
+  })
+  handle(IPC.networkRetry, (id) => network.retry(str(id)))
+  handle(IPC.networkFixFirewall, () => network.fixFirewall())
+  handle(IPC.networkDoctor, (id) => network.doctor(str(id)))
+  network.on('changed', (update) => broadcast(IPC.networkChanged, update))
 }
