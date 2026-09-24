@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import { errorMessage } from '@/lib/errors'
 import { AudienceDialog } from '@/components/network/AudienceChooser'
+import { EulaDialog } from '@/components/servers/EulaDialog'
+import { useSettings } from '@/stores/settings'
 import { t } from '@/strings'
 
 /** Start / Stop / Restart for one server, showing only what makes sense right now. */
@@ -18,11 +20,13 @@ export function PowerButtons({
   size?: 'default' | 'sm'
   showRestart?: boolean
 }) {
+  const eulaAccepted = useSettings((s) => !!s.settings?.eulaAcceptedAt)
   const [busy, setBusy] = useState(false)
-  const [asking, setAsking] = useState(false)
+  const [askingAudience, setAskingAudience] = useState(false)
+  const [askingEula, setAskingEula] = useState(false)
   const id = server.config.id
-  const run = (action: () => Promise<void>) => async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const run = (action: () => Promise<void>) => async (e?: React.MouseEvent) => {
+    e?.stopPropagation()
     setBusy(true)
     try {
       await action()
@@ -39,17 +43,21 @@ export function PowerButtons({
   const canStop = status === 'running' || status === 'starting'
   const needsAudience = (server.config.network?.audience ?? 'unset') === 'unset'
 
+  // First start asks, in order: the Minecraft EULA (if never agreed), then who's going to play.
+  const startFlow = (eulaOk = eulaAccepted): void => {
+    if (!eulaOk) setAskingEula(true)
+    else if (needsAudience) setAskingAudience(true)
+    else void run(() => api.servers.start(id))()
+  }
+
   return (
     <div className="flex items-center gap-2">
       {canStart && (
         <Button
           size={size}
           onClick={(e) => {
-            // First start: ask who's going to play before anything is opened up (owner's choice).
-            if (needsAudience) {
-              e.stopPropagation()
-              setAsking(true)
-            } else void run(() => api.servers.start(id))(e)
+            e.stopPropagation()
+            startFlow()
           }}
           disabled={busy}
         >
@@ -58,11 +66,19 @@ export function PowerButtons({
         </Button>
       )}
       <div onClick={(e) => e.stopPropagation()} className="contents">
+        <EulaDialog
+          open={askingEula}
+          onOpenChange={setAskingEula}
+          onAgreed={() => {
+            setAskingEula(false)
+            startFlow(true)
+          }}
+        />
         <AudienceDialog
-          open={asking}
-          onOpenChange={setAsking}
+          open={askingAudience}
+          onOpenChange={setAskingAudience}
           onChoose={(choice) => {
-            setAsking(false)
+            setAskingAudience(false)
             setBusy(true)
             api.network
               .setAudience(id, choice)

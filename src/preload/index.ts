@@ -64,6 +64,8 @@ const api: PughcraftApi = {
     useDirect: (id) => invoke(IPC.networkUseDirect, id),
     playitStatus: () => invoke(IPC.networkPlayitStatus),
     unlinkPlayit: () => invoke(IPC.networkUnlinkPlayit),
+    setMethod: (id, method, extra) => invoke(IPC.networkSetMethod, id, method, extra),
+    openRouterPage: (id) => invoke(IPC.networkOpenRouterPage, id),
     onChanged: (listener) => subscribe(IPC.networkChanged, listener)
   }
 }

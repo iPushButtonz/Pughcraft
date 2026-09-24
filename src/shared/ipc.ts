@@ -84,6 +84,14 @@ export interface PughcraftApi {
     useDirect(id: string): Promise<void>
     playitStatus(): Promise<PlayitStatus>
     unlinkPlayit(): Promise<void>
+    /** Manual forwarding, bore or a custom tunnel. Returns a task id when something downloads. */
+    setMethod(
+      id: string,
+      method: 'direct' | 'manual' | 'bore' | 'custom',
+      extra?: { boreRelay?: string; customCommand?: string; customAddress?: string }
+    ): Promise<string | null>
+    /** Opens the router's own settings page in the browser (home network address only). */
+    openRouterPage(id: string): Promise<void>
     onChanged(listener: (update: { id: string; view: ServerNetworkView }) => void): () => void
   }
 }
@@ -131,5 +139,7 @@ export const IPC = {
   networkUseDirect: 'network:use-direct',
   networkPlayitStatus: 'network:playit-status',
   networkUnlinkPlayit: 'network:unlink-playit',
+  networkSetMethod: 'network:set-method',
+  networkOpenRouterPage: 'network:open-router-page',
   networkChanged: 'network:changed'
 } as const

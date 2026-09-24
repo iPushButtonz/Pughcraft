@@ -9,6 +9,8 @@ import { CopyField } from '@/components/CopyField'
 import { AudienceChooser } from '@/components/network/AudienceChooser'
 import { DoctorCard } from '@/components/network/DoctorCard'
 import { TunnelButton, useTunnelConfirm } from '@/components/network/TunnelButton'
+import { PortForwardGuide } from '@/components/network/PortForwardGuide'
+import { MeshSection, OtherWays } from '@/components/network/OtherWays'
 import { useIsAdvanced } from '@/stores/settings'
 import { useNetwork } from '@/stores/network'
 import { api } from '@/lib/api'
@@ -66,6 +68,7 @@ export function NetworkPanel({ server }: { server: ServerSummary }) {
   const advanced = useIsAdvanced()
   const tunnel = useTunnelConfirm(id)
   const [fixingFirewall, setFixingFirewall] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
 
   if (!view) return null
   const audience = view.config.audience
@@ -88,6 +91,7 @@ export function NetworkPanel({ server }: { server: ServerSummary }) {
       else if (fix === 'firewall') await fixFirewall()
       else if (fix === 'retry-router') await api.network.retry(id)
       else if (fix === 'tunnel') await tunnel.ask()
+      else if (fix === 'guide') setGuideOpen(true)
     } catch (err) {
       toast.error(errorMessage(err))
     }
@@ -137,6 +141,11 @@ export function NetworkPanel({ server }: { server: ServerSummary }) {
                 <Button size="sm" variant="outline" onClick={() => void api.network.retry(id)}>
                   {n.retry}
                 </Button>
+                {(view.config.method === 'direct' || view.config.method === 'manual') && (
+                  <Button size="sm" variant="ghost" onClick={() => setGuideOpen(true)}>
+                    {n.guide.open}
+                  </Button>
+                )}
                 {view.config.method === 'direct' && (
                   <span className="w-full text-xs text-muted-foreground">{n.useTunnelHint}</span>
                 )}
@@ -183,7 +192,10 @@ export function NetworkPanel({ server }: { server: ServerSummary }) {
       )}
 
       <DoctorCard server={server} onFix={onFix} />
+      {advanced && audience === 'internet' && <OtherWays serverId={id} view={view} />}
+      {advanced && audience !== 'self' && <MeshSection view={view} />}
       {tunnel.dialog}
+      <PortForwardGuide serverId={id} view={view} open={guideOpen} onOpenChange={setGuideOpen} />
     </div>
   )
 }

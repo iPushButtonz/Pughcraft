@@ -27,6 +27,7 @@ import { MojangMeta } from './core/mojang'
 import { ServerManager } from './servers/manager'
 import { NetworkManager } from './net/network'
 import { PlayitManager } from './net/playit'
+import { BoreManager } from './net/bore'
 
 configureAppPaths()
 
@@ -58,7 +59,8 @@ async function start(): Promise<void> {
     join(dataRoot(), 'playit'),
     logsDir()
   )
-  const network = new NetworkManager({ servers, settings, tasks, playit, appPath: process.execPath })
+  const bore = new BoreManager(join(libraryRoot(), 'tools'))
+  const network = new NetworkManager({ servers, settings, tasks, playit, bore, appPath: process.execPath })
   lifecycle.onShutdown('network', () => network.shutdown(), 15_000)
 
   // Keep the PC awake while any server runs, unless the user turned that off.

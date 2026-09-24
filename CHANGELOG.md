@@ -28,3 +28,16 @@ All notable changes to Pughcraft. Versions follow [Semantic Versioning](https://
 - Crashed servers restart automatically (up to 3 times in 10 minutes) and explain what went wrong in plain English.
 - Quitting the app saves and stops every server first. The PC is kept awake while a server runs (can be turned off in Advanced).
 - Deleting a server moves it to the Recycle Bin.
+- Networking:
+  - "Who's going to play?" (Just me / People on my Wi-Fi / Friends anywhere) is asked on first start. Addresses for each are shown with copy buttons.
+  - Automatic router setup (UPnP, then NAT-PMP). The port opens while the server runs and closes when it stops.
+  - One-click Windows Firewall fix (single admin prompt, narrow rules). It also works on networks Windows marks as "Public".
+  - Built-in playit.gg tunnel for networks where the router can't be opened. Linking takes one browser approval; after that it's one click. The address stays the same, and the helper runs invisibly only while the server is on.
+  - Connection Doctor: checks each step and gives one plain-English answer with a fix button. Tests from the internet only run with your permission.
+  - Step-by-step port-forward guide with your exact values and tips for common router brands (the brand is detected automatically).
+  - Detects Tailscale/ZeroTier addresses. Advanced: bore and custom tunnels.
+  - "Share with friends" copies a ready-to-paste invite.
+- The Minecraft EULA is asked on first start if it hasn't been agreed to yet.
+
+### Changed
+- Brand green is a little brighter.

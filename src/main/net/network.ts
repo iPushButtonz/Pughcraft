@@ -18,7 +18,13 @@ import { natPmpExternalIp, natPmpMap } from './natpmp'
 import { checkFirewall, fixFirewall, type FixResult } from './firewall'
 import { runDoctor } from './doctor'
 import type { PlayitError, PlayitManager } from './playit'
+import type { BoreManager } from './bore'
+import { detectRouterBrand } from './router'
+import { meshAddresses } from './mesh'
+import { lookupPublicIp } from './outside'
 import type { TaskManager } from '../tasks'
+import { spawn, type ChildProcess } from 'node:child_process'
+import type { InternetMethod, RouterBrand } from '@shared/network'
 
 const log = logger('network')
 
@@ -39,7 +45,9 @@ interface NetState {
 }
 
 const MESSAGES: Record<InternetProblem, (port: number, extra?: string) => string> = {
-  'tunnel-failed': (_p, extra) => `The playit.gg tunnel couldn't be set up${extra ? `: ${extra}` : '.'}`,
+  'tunnel-failed': (_p, extra) => `The tunnel couldn't be set up${extra ? `: ${extra}` : '.'}`,
+  'need-public-ip': () =>
+    'To show your internet address, the app needs to look it up once (Settings → Privacy → Test servers from the internet).',
   'no-router-support': () =>
     "Your router didn't answer the automatic setup request. It may have UPnP turned off.",
   cgnat: () =>
@@ -56,6 +64,8 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
   private readonly lastStatus = new Map<string, ServerStatus>()
   private readonly firewallCache = new Map<string, { at: number; value: FirewallView }>()
   private readonly firewallChecking = new Set<string>()
+  private readonly customTunnels = new Map<string, ChildProcess>()
+  private routerInfo: { gateway: string | null; brand: RouterBrand | null } | null = null
 
   constructor(
     private readonly deps: {
@@ -63,6 +73,7 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
       settings: SettingsStore
       tasks: TaskManager
       playit: PlayitManager
+      bore: BoreManager
       appPath: string
     }
   ) {
@@ -132,8 +143,62 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
       },
       vpnActive: lan.vpnActive,
       firewall: refreshFirewall ? await this.firewall(id, true) : this.cachedFirewall(id),
-      internet
+      internet,
+      router: await this.router(lan.address),
+      lanIp: lan.address,
+      port,
+      mesh: meshAddresses().map((m) => ({ kind: m.kind, address: joinAddress(m.ip, port) }))
     }
+  }
+
+  /**
+   * Router address and brand for the port-forward guide, found once per session.
+   * The brand lookup (reading the router's login page) runs in the background.
+   */
+  private async router(lanIp: string | null): Promise<{ gateway: string | null; brand: RouterBrand | null }> {
+    if (this.routerInfo?.gateway) return this.routerInfo
+    const gateway = await defaultGateway(lanIp)
+    this.routerInfo = { gateway, brand: null }
+    if (gateway) {
+      void detectRouterBrand(gateway).then((brand) => {
+        this.routerInfo = { gateway, brand }
+        for (const s of this.deps.servers.list()) void this.emitView(s.config.id)
+      })
+    }
+    return this.routerInfo
+  }
+
+  /**
+   * Switches how friends outside reach the server (manual forwarding, bore or a custom
+   * tunnel; playit and direct have their own entry points). Downloads bore when needed.
+   */
+  setMethod(
+    id: string,
+    method: Exclude<InternetMethod, 'playit'>,
+    extra: { boreRelay?: string; customCommand?: string; customAddress?: string } = {}
+  ): string | null {
+    const apply = async (): Promise<void> => {
+      await this.deps.servers.setNetwork(id, {
+        method,
+        audience: 'internet',
+        ...(extra.boreRelay !== undefined ? { boreRelay: extra.boreRelay.trim() || 'bore.pub' } : {}),
+        ...(extra.customCommand !== undefined ? { customCommand: extra.customCommand } : {}),
+        ...(extra.customAddress !== undefined ? { customAddress: extra.customAddress.trim() } : {})
+      })
+      const status = this.deps.servers.get(id).status
+      if (status === 'running' || status === 'starting') await this.openInternet(id)
+      else void this.emitView(id)
+    }
+    if (method !== 'bore') {
+      void apply()
+      return null
+    }
+    const { id: taskId, result } = this.deps.tasks.run('Setting up the bore tunnel', async (ctx) => {
+      await this.deps.bore.ensure(ctx)
+      await apply()
+    })
+    result.catch(() => undefined)
+    return taskId
   }
 
   /**
@@ -310,7 +375,56 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
         this.setInternet(id, { state: 'needs-help', problem, message: MESSAGES[problem](port, extra) })
 
       await this.releaseForward(id)
-      if (this.deps.servers.networkConfig(id).method === 'playit') return this.openTunnel(id)
+      const cfg = this.deps.servers.networkConfig(id)
+      if (cfg.method === 'playit') return this.openTunnel(id)
+      if (cfg.method === 'manual') {
+        // The user forwarded the port by hand; we only need the public address to show it.
+        if (this.deps.settings.get().outsideChecks !== 'on-demand') return fail('need-public-ip')
+        this.setInternet(id, { state: 'working', problem: null, via: 'manual', message: 'Looking up your internet address…' })
+        const ip = await lookupPublicIp()
+        if (!ip) return fail('router-refused', 'your internet address could not be looked up')
+        s.address = joinAddress(ip, port)
+        return this.setInternet(id, {
+          state: 'ready',
+          problem: null,
+          via: 'manual',
+          message: 'Using the port forwarding you set up on your router. Run the Connection Doctor to test it.'
+        })
+      }
+      if (cfg.method === 'bore') {
+        this.setInternet(id, { state: 'working', problem: null, via: 'bore', message: 'Starting the bore tunnel…' })
+        try {
+          s.address = await this.deps.bore.start(id, port, cfg.boreRelay)
+        } catch (err) {
+          return fail('tunnel-failed', (err as Error).message)
+        }
+        return this.setInternet(id, {
+          state: 'ready',
+          problem: null,
+          via: 'bore',
+          message: `Friends can join through bore (${cfg.boreRelay}). The address changes every time the server starts.`
+        })
+      }
+      if (cfg.method === 'custom') {
+        if (!cfg.customAddress) return fail('tunnel-failed', 'no public address was entered for the custom tunnel')
+        if (cfg.customCommand.trim()) {
+          const child = spawn(cfg.customCommand.replaceAll('{port}', String(port)), {
+            shell: true,
+            windowsHide: true,
+            stdio: 'ignore'
+          })
+          child.on('exit', (code) => log.info(`custom tunnel for ${id} exited (${code})`))
+          this.customTunnels.set(id, child)
+        }
+        s.address = cfg.customAddress
+        return this.setInternet(id, {
+          state: 'ready',
+          problem: null,
+          via: 'custom',
+          message: 'Using your own tunnel.'
+        })
+      }
+      if (!cfg.autoForward) return fail('no-router-support')
       this.setInternet(id, { state: 'working', problem: null, message: 'Asking your router to let friends in…' })
       const lan = await lanInfo()
       if (lan.vpnActive) return fail('vpn', lan.vpnActive)
@@ -385,6 +499,13 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
     const s = this.state(id)
     if (s.renew) clearInterval(s.renew)
     s.renew = null
+    this.deps.bore.stop(id)
+    const custom = this.customTunnels.get(id)
+    this.customTunnels.delete(id)
+    // The command runs through a shell; end the whole process tree, not just the shell.
+    if (custom?.pid && process.platform === 'win32') {
+      spawn('taskkill', ['/pid', String(custom.pid), '/T', '/F'], { windowsHide: true })
+    } else custom?.kill()
     const fwd = s.forward
     s.forward = null
     if (!fwd) return
@@ -414,6 +535,7 @@ export class NetworkManager extends EventEmitter<{ changed: [{ id: string; view:
   async shutdown(): Promise<void> {
     await Promise.all([...this.states.keys()].map((id) => this.closeInternet(id)))
     this.deps.playit.stopAgent()
+    this.deps.bore.stopAll()
   }
 
   async doctor(id: string): Promise<DoctorReport> {

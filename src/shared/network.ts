@@ -1,8 +1,12 @@
 /** Who a server is meant for. 'unset' until the owner answers the first-start question. */
 export type Audience = 'unset' | 'self' | 'lan' | 'internet'
 
-/** How friends outside the home network reach the server. */
-export type InternetMethod = 'direct' | 'playit' | 'bore' | 'custom'
+/**
+ * How friends outside the home network reach the server:
+ * direct = the app asks the router (UPnP/NAT-PMP); manual = the user set up port forwarding;
+ * playit = built-in tunnel; bore / custom = Advanced tunnels.
+ */
+export type InternetMethod = 'direct' | 'manual' | 'playit' | 'bore' | 'custom'
 
 export interface ServerNetworkConfig {
   audience: Audience
@@ -11,14 +15,40 @@ export interface ServerNetworkConfig {
   autoForward: boolean
   /** The playit.gg tunnel created for this server, reused so its address never changes. */
   playitTunnelId: string | null
+  /** Advanced: bore relay host (default bore.pub, or the user's own bore server). */
+  boreRelay: string
+  /** Advanced: a command that opens your own tunnel ({port} is replaced), and the address it gives. */
+  customCommand: string
+  customAddress: string
 }
 
 export const DEFAULT_NETWORK: ServerNetworkConfig = {
   audience: 'unset',
   method: 'direct',
   autoForward: true,
-  playitTunnelId: null
+  playitTunnelId: null,
+  boreRelay: 'bore.pub',
+  customCommand: '',
+  customAddress: ''
 }
+
+export type RouterBrand =
+  | 'asus'
+  | 'tplink'
+  | 'netgear'
+  | 'linksys'
+  | 'xfinity'
+  | 'att'
+  | 'verizon'
+  | 'spectrum'
+  | 'mikrotik'
+  | 'ubiquiti'
+  | 'fritzbox'
+  | 'dlink'
+  | 'eero'
+  | 'other'
+
+export type MeshKind = 'tailscale' | 'zerotier'
 
 export interface PlayitStatus {
   supported: boolean
@@ -41,7 +71,8 @@ export type InternetProblem =
   | 'port-taken' // the router already forwards this port to another device
   | 'router-refused'
   | 'vpn' // a VPN carries all traffic
-  | 'tunnel-failed' // playit.gg couldn't set up the tunnel
+  | 'tunnel-failed' // a tunnel (playit, bore, custom) couldn't start
+  | 'need-public-ip' // manual forwarding, but looking up the public address isn't allowed
 
 export interface FirewallView {
   state: 'ok' | 'blocked' | 'not-allowed' | 'off' | 'unknown'
@@ -64,9 +95,16 @@ export interface ServerNetworkView {
     problem: InternetProblem | null
     /** One plain-English sentence about the current state. */
     message: string
-    via: 'upnp' | 'natpmp' | 'playit' | null
+    via: 'upnp' | 'natpmp' | 'manual' | 'playit' | 'bore' | 'custom' | null
     router: { manufacturer: string | null; model: string | null } | null
   }
+  /** For the port-forward guide. */
+  router: { gateway: string | null; brand: RouterBrand | null }
+  /** This PC's address on the home network (without port), for the port-forward guide. */
+  lanIp: string | null
+  port: number
+  /** Tailscale / ZeroTier addresses friends on those private networks can use. */
+  mesh: { kind: MeshKind; address: string }[]
 }
 
 export type DoctorCheckStatus = 'pass' | 'fail' | 'warn' | 'skip'

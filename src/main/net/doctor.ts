@@ -111,8 +111,12 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
 
   // 5. Router / tunnel path.
   const net = view.internet
-  const tunnel = config.method === 'playit'
-  const pathLabel = tunnel ? 'playit.gg tunnel set up' : 'Router set up'
+  const tunnel = config.method === 'playit' || config.method === 'bore' || config.method === 'custom'
+  const pathLabel = tunnel
+    ? 'Tunnel set up'
+    : config.method === 'manual'
+      ? 'Your port forwarding'
+      : 'Router set up'
   if (net.state === 'working') {
     add({ id: 'router', label: pathLabel, status: 'skip', detail: net.message })
     return report(verdict('warning', 'Still setting up', `${net.message} Try again in a few seconds.`))
@@ -131,6 +135,8 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
         return report(verdict('problem', 'There are two routers in the way', net.message + tunnelBody, 'tunnel'))
       case 'port-taken':
         return report(verdict('problem', 'The port is taken on your router', net.message, 'guide'))
+      case 'need-public-ip':
+        return report(verdict('warning', 'Your internet address is unknown', net.message))
       default: {
         const hint =
           fw?.networkCategory === 'Public' && !fw.routerRepliesAllowed
@@ -201,7 +207,7 @@ export async function runDoctor(input: DoctorInput): Promise<DoctorReport> {
         ? verdict(
             'problem',
             "The tunnel isn't reaching your server",
-            'playit.gg is set up, but a test from outside could not get through. Check that the playit.gg tunnel is enabled on playit.gg.' + cacheNote,
+            'The tunnel is set up, but a test from outside could not get through. If you use playit.gg, check that the tunnel is enabled on playit.gg.' + cacheNote,
             'tunnel'
           )
         : verdict(

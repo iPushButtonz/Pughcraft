@@ -35,6 +35,11 @@ export const t = {
       crashed: 'Crashed'
     }
   },
+  eula: {
+    title: 'One thing before the first start',
+    body: 'Minecraft servers may only run if you agree to Mojang’s End User License Agreement. You only need to do this once.',
+    agree: 'Agree and start'
+  },
   loaders: {
     vanilla: 'Plain Minecraft, exactly as Mojang makes it.',
     paper: 'A faster vanilla server that supports plugins.',
@@ -154,12 +159,73 @@ export const t = {
     tunnelLinkOnce:
       'The first time, playit.gg opens in your browser so you can approve linking this PC (a guest account is fine, no sign-up form). After that it’s one click.',
     tunnelContinue: 'Continue',
+    guide: {
+      open: 'Set up port forwarding myself',
+      title: 'Set up port forwarding',
+      intro:
+        'Port forwarding tells your router to send Minecraft players to this PC. You only do it once. Here are the exact values for your network:',
+      step1: 'Open your router’s settings page.',
+      openRouter: 'Open router settings',
+      step1Hint: 'Log in with the router’s admin password. It’s often printed on a sticker on the router.',
+      step2: 'Find the port forwarding page.',
+      step3: 'Add a new rule with these values:',
+      protocol: 'Protocol',
+      externalPort: 'External port',
+      internalIp: 'Internal IP (this PC)',
+      internalPort: 'Internal port',
+      step4: 'Reserve this PC’s address so it doesn’t change.',
+      step4Hint:
+        'Look for “DHCP reservation”, “Address reservation” or “Static lease” and pick this PC. Otherwise the rule stops working when the PC gets a new address.',
+      step5: 'Come back and click the button below.',
+      done: 'I’ve set it up. Use it',
+      orUpnp: 'Easier alternative: turn on UPnP in the same router settings, then click “Try again”.',
+      noAccess:
+        'No access to the router (for example in a dorm or shared building)? Use a tunnel instead. It needs no router changes.',
+      detected: (brand: string) => `Your router looks like a ${brand}.`
+    },
+    brands: {
+      asus: { name: 'ASUS', where: 'WAN → Virtual Server / Port Forwarding', upnp: 'WAN → Internet Connection → Enable UPnP' },
+      tplink: { name: 'TP-Link', where: 'Advanced → NAT Forwarding → Virtual Servers', upnp: 'Advanced → NAT Forwarding → UPnP' },
+      netgear: { name: 'NETGEAR', where: 'Advanced → Advanced Setup → Port Forwarding / Port Triggering', upnp: 'Advanced → Advanced Setup → UPnP' },
+      linksys: { name: 'Linksys', where: 'Security → Apps and Gaming → Single Port Forwarding', upnp: 'Connectivity → Administration → UPnP' },
+      xfinity: { name: 'Xfinity', where: 'Xfinity app → WiFi → View WiFi equipment → Advanced settings → Port forwarding', upnp: 'Advanced → UPnP (web admin at 10.0.0.1)' },
+      att: { name: 'AT&T', where: 'Firewall → NAT/Gaming', upnp: 'Firewall → Firewall Advanced → UPnP' },
+      verizon: { name: 'Verizon Fios', where: 'Advanced → Port Forwarding', upnp: 'Advanced → UPnP' },
+      spectrum: { name: 'Spectrum', where: 'My Spectrum app → Services → Internet → Advanced settings → Port forwarding', upnp: 'Advanced settings → UPnP' },
+      mikrotik: { name: 'MikroTik (RouterOS)', where: 'IP → Firewall → NAT → add a “dstnat” rule (protocol tcp, dst-port = the port above, action dst-nat to this PC’s IP and port)', upnp: 'IP → UPnP → Enabled (mark the internet interface as external)' },
+      ubiquiti: { name: 'Ubiquiti UniFi', where: 'UniFi Network → Settings → Routing → Port Forwarding', upnp: 'Settings → Internet → UPnP' },
+      fritzbox: { name: 'FRITZ!Box', where: 'Internet → Permit Access → Port Sharing', upnp: 'Internet → Permit Access → allow independent port sharing for this device' },
+      dlink: { name: 'D-Link', where: 'Advanced → Port Forwarding / Virtual Server', upnp: 'Advanced → Advanced Network → Enable UPnP' },
+      eero: { name: 'eero', where: 'eero app → Settings → Network settings → Reservations & port forwarding', upnp: 'eero app → Settings → Network settings → UPnP' },
+      other: { name: 'router', where: 'Usually under “Port Forwarding”, “Virtual Server”, “NAT” or “Firewall”, often in an Advanced section.', upnp: 'Usually under Advanced or WAN settings.' }
+    } as Record<string, { name: string; where: string; upnp: string }>,
+    advanced: {
+      title: 'Other ways to connect',
+      hint: 'How friends outside your home network reach this server.',
+      direct: 'Automatic router setup (UPnP / NAT-PMP)',
+      manual: 'My own port forwarding',
+      playit: 'playit.gg tunnel (free, third-party)',
+      bore: 'bore tunnel (no account; address changes every start; public relay has no uptime promise)',
+      boreRelay: 'Relay',
+      custom: 'Custom tunnel',
+      customCommand: 'Command to run while the server is on ({port} = server port)',
+      customAddress: 'Public address friends should use',
+      apply: 'Use this',
+      unlink: 'Unlink playit.gg from this PC'
+    },
+    mesh: {
+      title: 'Private VPN networks',
+      found: (kind: string) => `${kind} is running. Friends on your ${kind} network can join at:`,
+      none: 'Tailscale or ZeroTier let friends join as if they were on your Wi-Fi. Everyone installs the same app and joins your private network (free accounts).',
+      tailscale: 'Get Tailscale',
+      zerotier: 'Get ZeroTier'
+    },
     fix: {
       'start-server': 'Start the server',
       firewall: 'Allow through firewall',
       'retry-router': 'Try again',
       tunnel: 'Use a tunnel (one click)',
-      guide: null,
+      guide: 'Show me how',
       vpn: null,
       'choose-audience': 'Choose who can join'
     } as Record<string, string | null>

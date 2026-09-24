@@ -2,6 +2,33 @@ import { describe, expect, it } from 'vitest'
 import { createServer } from 'node:net'
 import { classifyIpv4, joinAddress } from './ipclass'
 import { handshakePacket, pingServer, readVarInt, writeVarInt } from './ping'
+import { brandFromText } from './router'
+import { parseDescription } from './upnp'
+
+describe('brandFromText', () => {
+  it.each([
+    ['RouterOS', 'mikrotik'],
+    ['ASUS Login', 'asus'],
+    ['Archer AX55', 'tplink'],
+    ['NETGEAR Router R7000', 'netgear'],
+    ['FRITZ!Box', 'fritzbox'],
+    ['Some Router', null]
+  ])('%s → %s', (text, brand) => expect(brandFromText(text)).toBe(brand))
+})
+
+describe('parseDescription', () => {
+  it('finds the WAN connection service and resolves its control URL', () => {
+    const xml = `<root><URLBase>http://192.168.1.1:5000/</URLBase><device><manufacturer>ASUSTeK</manufacturer>
+      <modelName>RT-AX86U</modelName><serviceList>
+      <service><serviceType>urn:schemas-upnp-org:service:Layer3Forwarding:1</serviceType><controlURL>/ctl/L3F</controlURL></service>
+      <service><serviceType>urn:schemas-upnp-org:service:WANIPConnection:1</serviceType><controlURL>/ctl/IPConn</controlURL></service>
+      </serviceList></device></root>`
+    const svc = parseDescription(xml, 'http://192.168.1.1:5000/rootDesc.xml')
+    expect(svc?.controlUrl).toBe('http://192.168.1.1:5000/ctl/IPConn')
+    expect(svc?.serviceType).toBe('urn:schemas-upnp-org:service:WANIPConnection:1')
+    expect(svc?.router.model).toBe('RT-AX86U')
+  })
+})
 
 describe('classifyIpv4', () => {
   it.each([

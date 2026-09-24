@@ -30,7 +30,7 @@ const statusIcon = {
 }
 
 /** Asks once whether the Doctor may use outside services, recommending "when I run it". */
-function OutsideConsent({ open, onDecide }: { open: boolean; onDecide: (choice: 'on-demand' | 'never' | null) => void }) {
+export function OutsideConsent({ open, onDecide }: { open: boolean; onDecide: (choice: 'on-demand' | 'never' | null) => void }) {
   return (
     <AlertDialog open={open}>
       <AlertDialogContent className="sm:max-w-xl">

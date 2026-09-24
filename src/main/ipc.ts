@@ -6,6 +6,7 @@ import type { TaskManager } from './tasks'
 import type { ServerManager } from './servers/manager'
 import type { MojangMeta } from './core/mojang'
 import type { NetworkManager } from './net/network'
+import { classifyIpv4 } from './net/ipclass'
 import { loaderAvailability } from './servers/catalog'
 import { memoryInfo } from './servers/system'
 import { openExternalSafe } from './external'
@@ -106,5 +107,21 @@ export function registerIpc({ settings, tasks, servers, network, mojang, appInfo
   handle(IPC.networkUseDirect, (id) => network.useDirect(str(id)))
   handle(IPC.networkPlayitStatus, () => network.playitStatus())
   handle(IPC.networkUnlinkPlayit, () => network.unlinkPlayit())
+  const methods = ['direct', 'manual', 'bore', 'custom'] as const
+  handle(IPC.networkSetMethod, (id, method, extra) => {
+    if (!methods.includes(method as (typeof methods)[number])) throw new Error('Unknown method.')
+    const e = (extra ?? {}) as Record<string, unknown>
+    const opt = (k: string): string | undefined => (typeof e[k] === 'string' ? (e[k] as string) : undefined)
+    return network.setMethod(str(id), method as (typeof methods)[number], {
+      boreRelay: opt('boreRelay'),
+      customCommand: opt('customCommand'),
+      customAddress: opt('customAddress')
+    })
+  })
+  handle(IPC.networkOpenRouterPage, async (id) => {
+    const gateway = (await network.view(str(id))).router.gateway
+    // Only ever a private home-network address we detected ourselves.
+    if (gateway && classifyIpv4(gateway) === 'private') await shell.openExternal(`http://${gateway}/`)
+  })
   network.on('changed', (update) => broadcast(IPC.networkChanged, update))
 }

@@ -39,8 +39,38 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
     - owner's world (southbendindianaminecraftworld.zip, MC 26.2 "Transfer world") on vanilla 26.2.
   - 15 unit tests pass. Production build OK.
 
+- 2026-09-24: **Step 3 ★ — networking** built and verified on the owner's PC:
+  - **Owner's network:** Wi-Fi 192.168.50.154, router 192.168.50.1 = MikroTik RouterOS. UPnP and NAT-PMP are off, and the owner has no router access. Windows marks the network as "Public".
+  - **Network tab:**
+    - First-start "who's going to play" (also asked from the Start button).
+    - Addresses: this PC / Wi-Fi / internet.
+    - Firewall status and fix; Doctor.
+    - Advanced: other ways (direct/manual/playit/bore/custom) and Tailscale/ZeroTier.
+  - **Share with friends** button (copies an invite with the best address).
+  - **Firewall fix** (one UAC prompt, clicked by the owner):
+    - TCP 25565–25664 for each managed Java;
+    - UDP from LocalSubnet for the app (SPEC §7.3 addition, approved);
+    - removes Windows' block rules for our Java.
+    - Verified rules are narrow.
+  - **UPnP/NAT-PMP client:**
+    - Written from scratch.
+    - SSDP verified working (5 other devices answered; the router didn't).
+    - Mapping add/remove has **not** run against a real UPnP router yet: the owner's router has it off.
+  - **Connection Doctor:** one verdict plus a fix button. Outside checks are opt-in via a consent popup (owner's rule).
+  - **playit.gg built in, verified end to end:**
+    - The pinned v1.0.10 signed agent runs hidden with `--secret-path`, `--socket-path` and `--log-path`.
+    - Owner linked a guest account.
+    - Tunnel `laurel-geneva.tun.ply.gg` reached the owner's world from the internet (checked via mcstatus.io).
+    - The helper starts and stops with the server; the address stays stable.
+    - NOTE: connecting to the tunnel from the same home network gets reset (no hairpin). The UI tells the host to use "This PC".
+  - Port-forward guide with the exact values, router brand from its login page, and brand tips.
+  - bore (pinned v0.6.0) and custom tunnels in Advanced. **Not yet tested end to end:** bore needs the owner's OK to download for a test.
+  - EULA prompt added to Start (it was only in Create before).
+  - 48 unit tests pass.
+
 ## Next
-- **Step 3 ★: networking.** Owner decisions (2026-09-23):
+- **Step 3 demo → owner feedback**, then **step 4 ★: import** (main test: owner's world zip).
+- **Step 3 background (done).** Owner decisions (2026-09-23):
   - **Who can join is asked on first start:** "Just me / People on my Wi-Fi / Friends anywhere", changeable in the Network tab. "Friends anywhere" walks the ladder automatically.
   - **Host directly off the PC first** (UPnP/NAT-PMP; no extra apps, one click).
   - **playit.gg is the fallback,** built in. Its agent is downloaded and run invisibly; there is a one-time browser link (guest account OK). bore and custom tunnels stay as Advanced options (SPEC §7.2).
