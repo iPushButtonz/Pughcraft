@@ -105,7 +105,13 @@ Before a server's first start, the app shows Mojang's EULA link and an **uncheck
 
 - **Smart snapshots:** each file is stored once by content hash, so a backup only adds the files that changed. Every snapshot still restores on its own, and any snapshot can be exported to a normal `.zip`.
 - **Hot backups while running:** `save-off` → `save-all flush` → wait for "Saved the game" → snapshot → `save-on`.
-- **Automatic:** every hour, but only if someone played since the last backup, and when the server stops. By default the **newest 5** are kept; Simple mode has a "Keep [5] backups" setting.
+- **Automatic:** by default every 30 minutes (only if someone played since the last backup) and when the server stops. By default the **newest 10** are kept.
+- **You choose when backups happen** (per server, any combination):
+  - every N minutes while people play (Simple: on/off at 30 minutes; Advanced: any interval);
+  - when the server stops;
+  - only when you click **Back up now**, which is always available.
+
+  Simple mode also has a "Keep [10] backups" setting. *(Owner's choices, 2026-09-24.)*
 - **Manual backups** are kept until deleted.
 - **Safety backups** are always taken before a restore, a version or loader change, a world switch and mod changes. They are kept 14 days.
 - **Protect flag:** a protected backup is never deleted automatically.
@@ -236,7 +242,7 @@ The app runs at every step. After each ★, the owner gets a demo and a chance t
 3. The library lives in `%APPDATA%\Pughcraft`. It can be moved, with a warning for cloud-synced folders.
 4. Server types: Vanilla, Paper, Fabric, Forge, NeoForge. Anything else runs as a Custom jar.
 5. Tunnel choices: playit.gg (default), bore, custom.
-6. Backups: smart snapshots, hourly only if someone played, plus on stop. Keep 5 automatic backups; safety backups kept 14 days.
+6. Backups: smart snapshots, every 30 minutes only if someone played, plus on stop. Keep 10 automatic backups; safety backups kept 14 days.
 7. RAM: vanilla/Paper 3 GB; modded 4 / 6 / 8 GB by mod count (<50 / 50–150 / 150+). Always capped so the PC keeps 4 GB free.
 8. Port 25565, or the next free one. Several servers can run at once.
 9. `online-mode` stays on, so players need real accounts. Offline mode is only possible in Advanced, with a warning.

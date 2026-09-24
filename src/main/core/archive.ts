@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, open, stat } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { Transform } from 'node:stream'
@@ -74,7 +74,7 @@ export async function extractZip(
   }
 }
 
-/** Extracts a .tar.gz into `dest`, reporting progress by compressed bytes read. */
+/** Extracts a .tar or .tar.gz into `dest` (tar detects gzip itself), reporting progress by bytes read. */
 export async function extractTarGz(
   file: string,
   dest: string,
@@ -94,10 +94,19 @@ export async function extractTarGz(
   await pipeline(createReadStream(file), counter, tar.x({ cwd: dest }), { signal: opts.signal })
 }
 
-export function extractArchive(
+/** Picks the format from the file's first bytes, not its name (.mrpack and .jar are zips). */
+export async function extractArchive(
   file: string,
   dest: string,
   opts: { signal?: AbortSignal; onProgress?: Progress } = {}
 ): Promise<void> {
-  return file.endsWith('.zip') ? extractZip(file, dest, opts) : extractTarGz(file, dest, opts)
+  const handle = await open(file, 'r')
+  const head = Buffer.alloc(4)
+  try {
+    await handle.read(head, 0, 4, 0)
+  } finally {
+    await handle.close()
+  }
+  const isZip = head[0] === 0x50 && head[1] === 0x4b // "PK"
+  return isZip ? extractZip(file, dest, opts) : extractTarGz(file, dest, opts)
 }
