@@ -1,0 +1,18 @@
+appId: io.github.ipushbuttonz.pughcraft
+productName: Pughcraft
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - resources/**
+  - package.json
+asarUnpack:
+  - resources/**
+win:
+  executableName: Pughcraft
+  icon: build/icon.png
+linux:
+  executableName: pughcraft
+  icon: build/icon.png
+  category: Game
