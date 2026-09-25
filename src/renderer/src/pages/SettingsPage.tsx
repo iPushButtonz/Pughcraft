@@ -1,7 +1,22 @@
-import { useEffect, useState } from 'react'
-import { ExternalLink, FolderOpen } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ExternalLink, FolderInput, FolderOpen, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { APP_NAME, LICENSE_NAME, MOJANG_DISCLAIMER, REPO_URL } from '@shared/brand'
-import type { AppInfo, FolderKind } from '@shared/ipc'
+import type { AppInfo, FolderKind, LibraryCheck, LibraryInfo } from '@shared/ipc'
+import { formatBytes } from '@shared/format'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+import { useServers } from '@/stores/servers'
+import { errorMessage } from '@/lib/errors'
 import type { CloseBehavior, ThemeSetting } from '@shared/settings'
 import type { OutsideChecks } from '@shared/network'
 import { Button } from '@/components/ui/button'
@@ -32,14 +47,86 @@ function FolderRow({ label, path, kind }: { label: string; path: string; kind: F
   )
 }
 
+/** Advanced: move servers, Java and downloads to another folder or drive. */
+function LibraryMoveRow() {
+  const [check, setCheck] = useState<LibraryCheck | null>(null)
+  const [folder, setFolder] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const anyRunning = useServers((s) => Object.values(s.servers).some((x) => x.status !== 'stopped' && x.status !== 'crashed'))
+  const problem = check && (check.same ? t.library.same : check.inside ? t.library.inside : check.freeBytes !== null && check.freeBytes < check.neededBytes * 1.05 ? t.library.noSpace : null)
+
+  return (
+    <SettingRow label={t.library.title} hint={anyRunning ? t.library.stopFirst : t.library.hint}>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={anyRunning || busy}
+        onClick={async () => {
+          const picked = await api.library.pick()
+          if (!picked) return
+          setBusy(true)
+          try {
+            setFolder(picked)
+            setCheck(await api.library.check(picked))
+          } catch (err) {
+            toast.error(errorMessage(err))
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        {busy ? <Loader2 className="animate-spin" /> : <FolderInput />}
+        {busy ? t.library.checking : t.library.move}
+      </Button>
+      <AlertDialog open={!!check} onOpenChange={(o) => !o && setCheck(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.library.confirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {check && <p>{t.library.confirmBody(check.target, formatBytes(check.neededBytes))}</p>}
+                {check?.cloud && <p className="rounded-md border border-warning/50 bg-warning/10 p-2 text-foreground">{t.library.cloudWarning}</p>}
+                {navigator.userAgent.includes('Windows') && <p>{t.library.firewallNote}</p>}
+                {problem && <p className="font-medium text-destructive">{problem}</p>}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.create.cancel}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!!problem}
+              onClick={() =>
+                folder &&
+                void api.library
+                  .move(folder)
+                  .then(() => toast.info(t.library.moving))
+                  .catch((err) => toast.error(errorMessage(err)))
+              }
+            >
+              {t.library.moveConfirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </SettingRow>
+  )
+}
+
 export function SettingsPage() {
   const settings = useSettings((s) => s.settings)
   const update = useSettings((s) => s.update)
   const advanced = useIsAdvanced()
   const [info, setInfo] = useState<AppInfo | null>(null)
+  const [library, setLibrary] = useState<LibraryInfo | null>(null)
+  const serverMap = useServers((s) => s.servers)
+  const servers = useMemo(
+    () => Object.values(serverMap).sort((a, b) => a.config.createdAt.localeCompare(b.config.createdAt)),
+    [serverMap]
+  )
 
   useEffect(() => {
     void api.app.info().then(setInfo)
+    void api.library.info().then(setLibrary)
   }, [])
 
   if (!settings) return null
@@ -69,17 +156,6 @@ export function SettingsPage() {
             ))}
           </RadioGroup>
         </SettingRow>
-        <SettingRow
-          label={t.settings.startAtLogin}
-          hint={t.settings.startAtLoginHint}
-          htmlFor="start-at-login"
-        >
-          <Switch
-            id="start-at-login"
-            checked={settings.startAtLogin}
-            onCheckedChange={(v) => void update({ startAtLogin: v })}
-          />
-        </SettingRow>
         {advanced && (
           <SettingRow
             label={t.settings.preventSleep}
@@ -93,6 +169,39 @@ export function SettingsPage() {
             />
           </SettingRow>
         )}
+      </SettingSection>
+
+      <SettingSection title={t.autoStart.title}>
+        <SettingRow
+          label={t.autoStart.withComputer}
+          hint={settings.startAtLogin ? t.autoStart.withComputerOn : t.autoStart.withComputerOff}
+          htmlFor="start-at-login"
+        >
+          <Switch id="start-at-login" checked={settings.startAtLogin} onCheckedChange={(v) => void update({ startAtLogin: v })} />
+        </SettingRow>
+        <SettingRow label={t.autoStart.servers} hint={t.autoStart.serversHint} stacked>
+          {servers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t.autoStart.none}</p>
+          ) : (
+            <ul className="space-y-2">
+              {servers.map((s) => (
+                <li key={s.config.id} className="flex items-center gap-3">
+                  <Checkbox
+                    id={`auto-${s.config.id}`}
+                    checked={!!s.config.autoStart}
+                    disabled={!s.config.installed}
+                    onCheckedChange={(v) =>
+                      void api.servers.setAutoStart(s.config.id, v === true).catch((err) => toast.error(errorMessage(err)))
+                    }
+                  />
+                  <Label htmlFor={`auto-${s.config.id}`} className="font-normal">
+                    {s.config.name}
+                  </Label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SettingRow>
       </SettingSection>
 
       <SettingSection title={t.settings.privacy}>
@@ -128,6 +237,24 @@ export function SettingsPage() {
       {info && (
         <SettingSection title={t.settings.storage}>
           <FolderRow label={t.settings.library} path={info.paths.library} kind="library" />
+          {library?.cloud && <p className="pb-4 text-sm text-warning">{t.library.currentCloud}</p>}
+          {advanced && <LibraryMoveRow />}
+        </SettingSection>
+      )}
+
+      {advanced && (
+        <SettingSection title={t.files.tab}>
+          <SettingRow
+            label={t.editFiles.title}
+            hint={settings.editFilesWhileRunning ? t.editFiles.on : t.editFiles.off}
+            htmlFor="edit-files-running"
+          >
+            <Switch
+              id="edit-files-running"
+              checked={settings.editFilesWhileRunning}
+              onCheckedChange={(v) => void update({ editFilesWhileRunning: v })}
+            />
+          </SettingRow>
         </SettingSection>
       )}
 

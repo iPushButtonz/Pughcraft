@@ -50,9 +50,40 @@ const api: PughcraftApi = {
     update: (id, patch) => invoke(IPC.serversUpdate, id, patch),
     remove: (id) => invoke(IPC.serversRemove, id),
     openFolder: (id) => invoke(IPC.serversOpenFolder, id),
+    setAutoStart: (id, on) => invoke(IPC.serversSetAutoStart, id, on),
     onChanged: (listener) => subscribe(IPC.serversChanged, listener),
     onRemoved: (listener) => subscribe(IPC.serversRemoved, listener),
-    onConsole: (listener) => subscribe(IPC.serversConsoleLines, listener)
+    onConsole: (listener) => subscribe(IPC.serversConsoleLines, listener),
+    onStats: (listener) => subscribe(IPC.serversStats, listener)
+  },
+  players: {
+    view: (serverId) => invoke(IPC.playersView, serverId),
+    act: (serverId, request) => invoke(IPC.playersAct, serverId, request),
+    dismissRequest: (serverId, name) => invoke(IPC.playersDismiss, serverId, name),
+    onChanged: (listener) => subscribe(IPC.playersChanged, listener),
+    onRequest: (listener) => subscribe(IPC.playersRequest, listener)
+  },
+  gamerules: {
+    view: (serverId) => invoke(IPC.gamerulesView, serverId),
+    set: (serverId, ruleId, value) => invoke(IPC.gamerulesSet, serverId, ruleId, value),
+    resetAll: (serverId) => invoke(IPC.gamerulesResetAll, serverId),
+    onChanged: (listener) => subscribe(IPC.gamerulesChanged, listener)
+  },
+  files: {
+    list: (serverId, path) => invoke(IPC.filesList, serverId, path),
+    read: (serverId, path) => invoke(IPC.filesRead, serverId, path),
+    write: (serverId, path, text) => invoke(IPC.filesWrite, serverId, path, text),
+    mkdir: (serverId, parent, name) => invoke(IPC.filesMkdir, serverId, parent, name),
+    rename: (serverId, path, newName) => invoke(IPC.filesRename, serverId, path, newName),
+    trash: (serverId, path) => invoke(IPC.filesTrash, serverId, path),
+    importFiles: (serverId, parent) => invoke(IPC.filesImport, serverId, parent),
+    reveal: (serverId, path) => invoke(IPC.filesReveal, serverId, path)
+  },
+  library: {
+    info: () => invoke(IPC.libraryInfo),
+    pick: () => invoke(IPC.libraryPick),
+    check: (folder) => invoke(IPC.libraryCheck, folder),
+    move: (folder) => invoke(IPC.libraryMove, folder)
   },
   network: {
     view: (id, refreshFirewall) => invoke(IPC.networkView, id, refreshFirewall),
@@ -80,6 +111,8 @@ const api: PughcraftApi = {
     list: (serverId) => invoke(IPC.worldsList, serverId),
     activate: (serverId, slot) => invoke(IPC.worldsActivate, serverId, slot),
     remove: (serverId, slot) => invoke(IPC.worldsRemove, serverId, slot),
+    create: (serverId, name, seed) => invoke(IPC.worldsCreate, serverId, name, seed),
+    exportZip: (serverId, slot) => invoke(IPC.worldsExport, serverId, slot),
     onChanged: (listener) => subscribe(IPC.worldsChanged, listener)
   },
   backups: {

@@ -5,6 +5,11 @@ import type { BackupSchedule } from '@shared/backups'
 import type { ImportRequest } from '@shared/imports'
 import type { ImportService } from './import/service'
 import type { BackupManager } from './backups/manager'
+import type { PlayerManager } from './servers/players'
+import type { GameRuleManager } from './servers/gamerules'
+import type { FileService } from './servers/files'
+import type { StatsSampler } from './servers/stats'
+import type { LibraryService } from './library'
 import { IPC, type AppInfo, type FolderKind, type ServerConfigPatch } from '@shared/ipc'
 import type { CreateServerRequest, SimpleProperties } from '@shared/servers'
 import type { SettingsStore } from './settings'
@@ -28,6 +33,11 @@ interface Deps {
   network: NetworkManager
   imports: ImportService
   backups: BackupManager
+  players: PlayerManager
+  gamerules: GameRuleManager
+  files: FileService
+  stats: StatsSampler
+  library: LibraryService
   mojang: MojangMeta
   appInfo: () => AppInfo
 }
@@ -55,7 +65,21 @@ function broadcast(channel: string, payload: unknown): void {
 const FOLDERS: FolderKind[] = ['library', 'dataRoot', 'logs']
 const str = (v: unknown): string => String(v)
 
-export function registerIpc({ settings, tasks, servers, network, imports, backups, mojang, appInfo }: Deps): void {
+export function registerIpc({
+  settings,
+  tasks,
+  servers,
+  network,
+  imports,
+  backups,
+  players,
+  gamerules,
+  files,
+  stats,
+  library,
+  mojang,
+  appInfo
+}: Deps): void {
   handle(IPC.appInfo, () => appInfo())
   handle(IPC.appOpenFolder, async (which) => {
     if (!FOLDERS.includes(which as FolderKind)) return
@@ -198,4 +222,79 @@ export function registerIpc({ settings, tasks, servers, network, imports, backup
     await shell.openPath(dir)
   })
   backups.on('changed', (id) => broadcast(IPC.backupsChanged, id))
+
+  handle(IPC.worldsCreate, (id, name, seed) => backups.newWorld(str(id), str(name), seed == null ? '' : str(seed)))
+  handle(IPC.worldsExport, async (id, slot) => {
+    const serverId = str(id)
+    const world = (await servers.worlds(serverId)).find((w) => w.slot === str(slot))
+    if (!world) throw new Error('That world no longer exists.')
+    const safe = world.levelName.replace(/[<>:"/\\|?*\x00-\x1f]+/g, '').trim() || 'world'
+    const dest = await saveDialog({ title: 'Save world as .zip', defaultPath: `${safe}.zip`, filters: [{ name: 'Zip', extensions: ['zip'] }] })
+    if (!dest) return null
+    const { id: taskId, result } = tasks.run(`Exporting ${world.levelName}`, (ctx) => servers.exportWorld(serverId, world.slot, dest, ctx))
+    result.catch(() => undefined)
+    return taskId
+  })
+
+  handle(IPC.serversSetAutoStart, (id, on) => servers.setAutoStart(str(id), on === true))
+  stats.on('stats', (s) => broadcast(IPC.serversStats, s))
+
+  const actions = ['whitelist-add', 'whitelist-remove', 'op', 'deop', 'ban', 'pardon', 'ban-ip', 'pardon-ip', 'kick'] as const
+  handle(IPC.playersView, (id) => players.view(str(id)))
+  handle(IPC.playersAct, (id, req) => {
+    const r = (req ?? {}) as Record<string, unknown>
+    if (!actions.includes(r.action as (typeof actions)[number])) throw new Error('Unknown action.')
+    return players.act(str(id), {
+      action: r.action as (typeof actions)[number],
+      target: str(r.target ?? ''),
+      reason: typeof r.reason === 'string' ? r.reason : undefined
+    })
+  })
+  handle(IPC.playersDismiss, (id, name) => players.dismissRequest(str(id), str(name)))
+  players.on('changed', (id) => broadcast(IPC.playersChanged, id))
+  players.on('request', (req) => broadcast(IPC.playersRequest, req))
+
+  handle(IPC.gamerulesView, (id) => gamerules.view(str(id)))
+  handle(IPC.gamerulesSet, (id, rule, value) => gamerules.set(str(id), str(rule), value))
+  handle(IPC.gamerulesResetAll, (id) => gamerules.resetAll(str(id)))
+  gamerules.on('changed', (id) => broadcast(IPC.gamerulesChanged, id))
+
+  handle(IPC.filesList, (id, path) => files.list(str(id), str(path ?? '')))
+  handle(IPC.filesRead, (id, path) => files.read(str(id), str(path)))
+  handle(IPC.filesWrite, (id, path, text) => files.write(str(id), str(path), str(text)))
+  handle(IPC.filesMkdir, (id, parent, name) => files.mkdir(str(id), str(parent ?? ''), str(name)))
+  handle(IPC.filesRename, (id, path, name) => files.rename(str(id), str(path), str(name)))
+  handle(IPC.filesTrash, (id, path) => files.trash(str(id), str(path)))
+  handle(IPC.filesReveal, (id, path) => files.reveal(str(id), str(path ?? '')))
+  handle(IPC.filesImport, async (id, parent) => {
+    const win = BrowserWindow.getFocusedWindow()
+    const opts: Electron.OpenDialogOptions = { title: 'Copy files into the server', properties: ['openFile', 'multiSelections'] }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    if (res.canceled || !res.filePaths.length) return null
+    const { id: taskId, result } = tasks.run('Copying files in', (ctx) => files.importPaths(str(id), str(parent ?? ''), res.filePaths, ctx))
+    result.catch(() => undefined)
+    return taskId
+  })
+
+  handle(IPC.libraryInfo, () => library.info())
+  handle(IPC.libraryPick, async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const opts: Electron.OpenDialogOptions = { title: 'Choose where to keep servers, Java and downloads', properties: ['openDirectory', 'createDirectory'] }
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    return res.canceled ? null : (res.filePaths[0] ?? null)
+  })
+  handle(IPC.libraryCheck, (folder) => {
+    if (!isAbsolute(str(folder))) throw new Error('Pick a folder.')
+    return library.check(str(folder))
+  })
+  handle(IPC.libraryMove, (folder) => {
+    if (!isAbsolute(str(folder))) throw new Error('Pick a folder.')
+    return library.move(str(folder))
+  })
+}
+
+async function saveDialog(opts: Electron.SaveDialogOptions): Promise<string | null> {
+  const win = BrowserWindow.getFocusedWindow()
+  const pick = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+  return pick.canceled || !pick.filePath ? null : pick.filePath
 }

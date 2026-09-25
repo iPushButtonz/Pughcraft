@@ -19,6 +19,8 @@ export interface Settings {
    * to test the server from the internet. 'ask' until the user decides.
    */
   outsideChecks: 'ask' | 'on-demand' | 'never'
+  /** Files tab: allow saving changes while a server runs. */
+  editFilesWhileRunning: boolean
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'schema'>>
@@ -32,7 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   trayHintShown: false,
   eulaAcceptedAt: null,
   preventSleep: true,
-  outsideChecks: 'ask'
+  outsideChecks: 'ask',
+  editFilesWhileRunning: true
 }
 
 const oneOf =
@@ -49,7 +52,8 @@ const validators: { [K in keyof SettingsPatch]-?: (v: unknown) => boolean } = {
   trayHintShown: isBool,
   eulaAcceptedAt: (v) => v === null || (typeof v === 'string' && !Number.isNaN(Date.parse(v))),
   preventSleep: isBool,
-  outsideChecks: oneOf('ask', 'on-demand', 'never')
+  outsideChecks: oneOf('ask', 'on-demand', 'never'),
+  editFilesWhileRunning: isBool
 }
 
 /** Keeps only known keys with valid values; anything else is dropped. */

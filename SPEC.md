@@ -244,6 +244,7 @@ The app runs at every step. After each ★, the owner gets a demo and a chance t
 5. Tunnel choices: playit.gg (default), bore, custom.
 6. Backups: smart snapshots, every 15 minutes only if someone played (owner changed from 30 on 2026-09-24 after load tests), plus on stop. Keep 10 automatic backups; safety backups kept 14 days.
 7. RAM: vanilla/Paper 3 GB; modded 4 / 6 / 8 GB by mod count (<50 / 50–150 / 150+). Always capped so the PC keeps 4 GB free.
+   - **Planned (owner request, 2026-09-24; not built yet, parameters to be asked first):** instead of a fixed number, the recommended RAM is worked out from things like world download size, players online and render distance. The RAM slider stays, with the recommended mark moving to match. Which inputs, how they combine, and where it shows will be asked before building.
 8. Port 25565, or the next free one. Several servers can run at once.
 9. `online-mode` stays on, so players need real accounts. Offline mode is only possible in Advanced, with a warning.
 10. Crashes auto-restart (max 3 per 10 min) and get plain-English crash reasons.

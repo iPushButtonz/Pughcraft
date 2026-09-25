@@ -237,6 +237,16 @@ export class BackupManager extends EventEmitter<{ changed: [serverId: string] }>
     }).result
   }
 
+  /** A new world parks the current one, so a safety backup comes first too. */
+  newWorld(id: string, name: string, seed: string): Promise<void> {
+    if (this.deps.servers.isLive(id)) throw new Error('Stop the server before making a new world.')
+    return this.task(id, 'Making a new world', async (ctx) => {
+      ctx.step('Taking a safety backup first')
+      await this.snapshot(id, 'safety', 'Before making a new world', ctx)
+      await this.deps.servers.newWorld(id, name, seed)
+    }).result
+  }
+
   /** Saves a backup as a normal .zip wherever the user picks. Null when they cancel. */
   async exportZip(id: string, backupId: string): Promise<string | null> {
     const m = await this.store(id).get(backupId)

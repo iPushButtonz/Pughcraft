@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, Globe2, Loader2, Plus, Trash2 } from 'lucide-react'
+import { CheckCircle2, Download, Globe2, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import type { WorldInfo } from '@shared/imports'
 import type { ServerSummary } from '@shared/servers'
@@ -29,6 +32,10 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<WorldInfo | null>(null)
   const [switching, setSwitching] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newSeed, setNewSeed] = useState('')
   const stopped = server.status === 'stopped' || server.status === 'crashed'
 
   const load = useCallback(() => api.worlds.list(id).then(setWorlds), [id])
@@ -49,7 +56,11 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 pb-10">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" disabled={!stopped} title={stopped ? undefined : w.stopFirst} onClick={() => setCreating(true)}>
+          <Sparkles />
+          {w.newWorld}
+        </Button>
         <Button variant="outline" onClick={() => setAdding(true)}>
           <Plus />
           {w.add}
@@ -70,6 +81,7 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
                       {w.active}
                     </span>
                   )}
+                  {world.pending && <span className="rounded bg-warning/20 px-1.5 py-0.5 text-xs font-normal">{w.pending}</span>}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {[
@@ -82,6 +94,20 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
                 </p>
               </div>
             </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {!world.pending && (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={w.exportZip}
+                  title={w.exportZip}
+                  onClick={act(async () => {
+                    if (await api.worlds.exportZip(id, world.slot)) toast.info(w.exporting)
+                  })}
+                >
+                  <Download />
+                </Button>
+              )}
             {!world.active && (
               <div className="flex shrink-0 items-center gap-2">
                 <Button
@@ -106,12 +132,58 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
                 </Button>
               </div>
             )}
+            </div>
           </li>
         ))}
       </ul>
       {!stopped && worlds && worlds.length > 1 && <p className="text-xs text-muted-foreground">{w.stopFirst}</p>}
 
       <ImportDialog open={adding} onOpenChange={setAdding} targetServerId={id} />
+      <Dialog open={creating} onOpenChange={(o) => !busy && setCreating(o)}>
+        <DialogContent className="sm:max-w-md">
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newName.trim()) return
+              setBusy(true)
+              void act(async () => {
+                try {
+                  await api.worlds.create(id, newName.trim(), newSeed.trim())
+                  toast.success(w.created)
+                  setCreating(false)
+                  setNewName('')
+                  setNewSeed('')
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{w.newWorldTitle}</DialogTitle>
+              <DialogDescription>{w.newWorldBody}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="new-world-name">{w.newWorldName}</Label>
+              <Input id="new-world-name" autoFocus maxLength={40} value={newName} onChange={(e) => setNewName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-world-seed">{w.newWorldSeed}</Label>
+              <Input id="new-world-seed" maxLength={64} placeholder={w.newWorldSeedHint} value={newSeed} onChange={(e) => setNewSeed(e.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => setCreating(false)}>
+                {t.create.cancel}
+              </Button>
+              <Button type="submit" disabled={busy || !newName.trim()}>
+                {busy && <Loader2 className="animate-spin" />}
+                {busy ? w.creating : w.create}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -3,6 +3,8 @@ import type { Audience, DoctorReport, PlayitStatus, ServerNetworkView } from './
 import type { FoundItem, ImportAnalysis, ImportRequest, WorldInfo } from './imports'
 import type { TaskSnapshot } from './tasks'
 import type { BackupSchedule, BackupsView, RestoreMode } from './backups'
+import type { FileContent, FileEntry, JoinRequest, PlayerActionRequest, PlayersView, ServerStats } from './players'
+import type { GameRulesView } from './gamerules'
 import type {
   ConsoleLine,
   CreateServerRequest,
@@ -15,6 +17,23 @@ import type {
 } from './servers'
 
 export type FolderKind = 'library' | 'dataRoot' | 'logs'
+
+export interface LibraryInfo {
+  path: string
+  isDefault: boolean
+  cloud: boolean
+}
+
+export interface LibraryCheck {
+  /** The folder the library would actually go to. */
+  target: string
+  /** Inside OneDrive, Dropbox, Google Drive and the like. */
+  cloud: boolean
+  same: boolean
+  inside: boolean
+  freeBytes: number | null
+  neededBytes: number
+}
 
 export interface AppInfo {
   name: string
@@ -71,9 +90,44 @@ export interface PughcraftApi {
     update(id: string, patch: ServerConfigPatch): Promise<ServerSummary>
     remove(id: string): Promise<void>
     openFolder(id: string): Promise<void>
+    setAutoStart(id: string, on: boolean): Promise<ServerSummary>
     onChanged(listener: (server: ServerSummary) => void): () => void
     onRemoved(listener: (id: string) => void): () => void
     onConsole(listener: (batch: { id: string; lines: ConsoleLine[] }) => void): () => void
+    /** CPU and memory of running servers, every 2 seconds. */
+    onStats(listener: (stats: ServerStats[]) => void): () => void
+  }
+  players: {
+    view(serverId: string): Promise<PlayersView>
+    act(serverId: string, request: PlayerActionRequest): Promise<PlayersView>
+    dismissRequest(serverId: string, name: string): Promise<void>
+    onChanged(listener: (serverId: string) => void): () => void
+    /** Someone the whitelist turned away. */
+    onRequest(listener: (request: JoinRequest) => void): () => void
+  }
+  gamerules: {
+    view(serverId: string): Promise<GameRulesView>
+    set(serverId: string, ruleId: string, value: boolean | number): Promise<GameRulesView>
+    resetAll(serverId: string): Promise<GameRulesView>
+    onChanged(listener: (serverId: string) => void): () => void
+  }
+  files: {
+    list(serverId: string, path: string): Promise<FileEntry[]>
+    read(serverId: string, path: string): Promise<FileContent>
+    write(serverId: string, path: string, text: string): Promise<void>
+    mkdir(serverId: string, parent: string, name: string): Promise<void>
+    rename(serverId: string, path: string, newName: string): Promise<void>
+    trash(serverId: string, path: string): Promise<void>
+    /** Asks which files to copy in; returns a task id, or null when cancelled. */
+    importFiles(serverId: string, parent: string): Promise<string | null>
+    reveal(serverId: string, path: string): Promise<void>
+  }
+  library: {
+    info(): Promise<LibraryInfo>
+    pick(): Promise<string | null>
+    check(folder: string): Promise<LibraryCheck>
+    /** Returns the task id. The app restarts when the move finishes. */
+    move(folder: string): Promise<string>
   }
   network: {
     view(id: string, refreshFirewall?: boolean): Promise<ServerNetworkView>
@@ -110,6 +164,10 @@ export interface PughcraftApi {
     list(serverId: string): Promise<WorldInfo[]>
     activate(serverId: string, slot: string): Promise<void>
     remove(serverId: string, slot: string): Promise<void>
+    /** Makes a fresh world (after a safety backup); generated on the next start. */
+    create(serverId: string, name: string, seed: string): Promise<void>
+    /** Asks where to save; returns a task id, or null when cancelled. */
+    exportZip(serverId: string, slot: string): Promise<string | null>
     onChanged(listener: (serverId: string) => void): () => void
   }
   backups: {
@@ -193,5 +251,30 @@ export const IPC = {
   backupsExport: 'backups:export',
   backupsPickLocation: 'backups:pick-location',
   backupsOpenFolder: 'backups:open-folder',
-  backupsChanged: 'backups:changed'
+  backupsChanged: 'backups:changed',
+  serversSetAutoStart: 'servers:set-auto-start',
+  serversStats: 'servers:stats',
+  playersView: 'players:view',
+  playersAct: 'players:act',
+  playersDismiss: 'players:dismiss',
+  playersChanged: 'players:changed',
+  playersRequest: 'players:request',
+  gamerulesView: 'gamerules:view',
+  gamerulesSet: 'gamerules:set',
+  gamerulesResetAll: 'gamerules:reset-all',
+  gamerulesChanged: 'gamerules:changed',
+  filesList: 'files:list',
+  filesRead: 'files:read',
+  filesWrite: 'files:write',
+  filesMkdir: 'files:mkdir',
+  filesRename: 'files:rename',
+  filesTrash: 'files:trash',
+  filesImport: 'files:import',
+  filesReveal: 'files:reveal',
+  libraryInfo: 'library:info',
+  libraryPick: 'library:pick',
+  libraryCheck: 'library:check',
+  libraryMove: 'library:move',
+  worldsCreate: 'worlds:create',
+  worldsExport: 'worlds:export'
 } as const

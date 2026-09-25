@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ConsoleLine, ServerSummary } from '@shared/servers'
+import type { ServerStats } from '@shared/players'
 import { api } from '@/lib/api'
 
 const MAX_LINES = 3000
@@ -9,6 +10,8 @@ interface ServersState {
   servers: Record<string, ServerSummary>
   /** Console lines per server, only for servers whose console has been opened. */
   consoles: Record<string, ConsoleLine[]>
+  /** Latest CPU/memory reading per running server. */
+  stats: Record<string, ServerStats>
   loadConsole(id: string): Promise<void>
 }
 
@@ -16,6 +19,7 @@ export const useServers = create<ServersState>((set, get) => ({
   loaded: false,
   servers: {},
   consoles: {},
+  stats: {},
   loadConsole: async (id) => {
     if (get().consoles[id]) return
     const lines = await api.servers.console(id)
@@ -24,7 +28,15 @@ export const useServers = create<ServersState>((set, get) => ({
 }))
 
 api.servers.onChanged((server) =>
-  useServers.setState((s) => ({ servers: { ...s.servers, [server.config.id]: server } }))
+  useServers.setState((s) => {
+    const servers = { ...s.servers, [server.config.id]: server }
+    if (server.status === 'running' || !s.stats[server.config.id]) return { servers }
+    const { [server.config.id]: _old, ...stats } = s.stats
+    return { servers, stats }
+  })
+)
+api.servers.onStats((list) =>
+  useServers.setState((s) => ({ stats: { ...s.stats, ...Object.fromEntries(list.map((x) => [x.serverId, x])) } }))
 )
 api.servers.onRemoved((id) =>
   useServers.setState((s) => {

@@ -55,6 +55,14 @@ All notable changes to Pughcraft. Versions follow [Semantic Versioning](https://
   - Restore the whole server (world, settings, mods and the Minecraft version) or only the world. A safety backup of how things were is always taken first.
   - Save any backup as a normal .zip. Advanced: move backups to another folder or drive.
 - Switching worlds now takes a safety backup first.
+- Players tab: see who's online, manage the whitelist, operators and bans, and kick players, whether the server is on or off.
+- When someone who isn't on the whitelist tries to join, a popup with a sound lets you allow them in one click.
+- Game rules: every rule for your world's Minecraft version, each explaining what on and off do. They start at Minecraft's normal values. Changes made while the server is off apply on its next start.
+- Files tab (Advanced): browse and edit the server's files. A setting controls editing while the server runs.
+- CPU and memory use on the server's Overview.
+- Worlds: save a world as a .zip, or make a new world with its own name and seed.
+- Choose which servers start automatically when Pughcraft opens.
+- Advanced: move the whole library (servers, Java, downloads) to another folder or drive.
 
 ### Changed
 - Brand green is a little brighter.

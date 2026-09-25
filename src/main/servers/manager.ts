@@ -1,9 +1,11 @@
 import { EventEmitter } from 'node:events'
-import { existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { createWriteStream, existsSync } from 'node:fs'
+import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
-import { basename, join } from 'node:path'
+import { basename, join, relative, sep } from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import { shell } from 'electron'
+import yazl from 'yazl'
 import type {
   ConsoleLine,
   CreateServerRequest,
@@ -89,6 +91,20 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 24)
   return `${slug || 'server'}-${randomBytes(3).toString('hex')}`
+}
+
+/** Every file under `dir`, with "/"-separated relative paths. */
+async function listFiles(dir: string): Promise<{ abs: string; rel: string; size: number }[]> {
+  const out: { abs: string; rel: string; size: number }[] = []
+  const walk = async (abs: string): Promise<void> => {
+    for (const d of await readdir(abs, { withFileTypes: true })) {
+      const full = join(abs, d.name)
+      if (d.isDirectory()) await walk(full)
+      else if (d.isFile()) out.push({ abs: full, rel: relative(dir, full).split(sep).join('/'), size: (await stat(full)).size })
+    }
+  }
+  await walk(dir)
+  return out
 }
 
 async function writeAtomic(file: string, text: string): Promise<void> {
@@ -750,6 +766,57 @@ export class ServerManager extends EventEmitter<{
     this.appLine(this.entry(id), text)
   }
 
+  /** Resolves true when the running server prints a line matching `re`; false if not running or on timeout. */
+  waitForConsole(id: string, re: RegExp, timeoutMs: number): Promise<boolean> {
+    return this.entry(id).proc?.waitForLine(re, timeoutMs) ?? Promise.resolve(false)
+  }
+
+  /** Runs commands without echo; lines `claim` accepts are returned and kept out of the console. */
+  quiet(id: string, commands: string[], claim: (text: string) => boolean, windowMs: number): Promise<string[]> {
+    const e = this.entry(id)
+    if (!e.proc || e.status !== 'running') return Promise.resolve([])
+    return e.proc.quiet(commands, claim, windowMs)
+  }
+
+  /** The Java process id of a running server. */
+  pid(id: string): number | null {
+    return this.entry(id).proc?.pid ?? null
+  }
+
+  /** The active world's folder (it may not exist before the first start). */
+  async activeWorldDir(id: string): Promise<string> {
+    return join(this.serverDir(id), await this.worldStore(id).levelName())
+  }
+
+  pendingGameRules(id: string): Record<string, boolean | number> {
+    return { ...this.entry(id).config.pendingGameRules }
+  }
+
+  async setPendingGameRules(id: string, rules: Record<string, boolean | number>): Promise<void> {
+    const e = this.entry(id)
+    e.config.pendingGameRules = Object.keys(rules).length ? rules : undefined
+    await this.saveConfig(e)
+  }
+
+  async setAutoStart(id: string, on: boolean): Promise<ServerSummary> {
+    const e = this.entry(id)
+    e.config.autoStart = on || undefined
+    await this.saveConfig(e)
+    this.changed(e)
+    return this.summary(e)
+  }
+
+  /** Starts the servers marked "start when Pughcraft opens". */
+  async startAutoStartServers(): Promise<void> {
+    for (const e of this.entries.values()) {
+      if (!e.config.autoStart || !e.config.installed || e.proc) continue
+      await this.start(e.config.id).catch((err: Error) => {
+        this.appLine(e, `Couldn't start automatically: ${err.message}`)
+        this.setStatus(e, 'stopped', err.message)
+      })
+    }
+  }
+
   addStartGate(gate: (id: string) => Promise<void>): void {
     this.startGates.push(gate)
   }
@@ -784,6 +851,47 @@ export class ServerManager extends EventEmitter<{
     await this.worldStore(id).activate(slot)
     this.appLine(e, 'Switched worlds. The new one loads on the next start.')
     this.emit('worlds', id)
+  }
+
+  /** Parks the current world; the server generates a fresh one (optionally from `seed`) on its next start. */
+  async newWorld(id: string, name: string, seed: string): Promise<void> {
+    const e = this.entry(id)
+    if (e.proc) throw new Error('Stop the server before making a new world.')
+    const clean = name.trim().slice(0, 40)
+    if (!clean) throw new Error('Give the new world a name.')
+    const props = await this.readProps(id)
+    props.set('level-seed', seed.trim().slice(0, 64))
+    await writeAtomic(join(this.serverDir(id), 'server.properties'), props.serialize())
+    await this.worldStore(id).createNew(clean)
+    this.appLine(e, `Made room for a new world, “${clean}”. It's generated on the next start.`)
+    this.emit('worlds', id)
+  }
+
+  /** Writes a world (with its Nether/End folders) as a normal .zip anyone can open. */
+  async exportWorld(id: string, slot: string, dest: string, ctx: TaskContext): Promise<void> {
+    this.entry(id)
+    const store = this.worldStore(id)
+    const folders = await store.foldersOf(slot)
+    const name = (await store.list()).find((w) => w.slot === slot)?.levelName ?? slot
+    const safe = name.replace(/[<>:"/\\|?*\x00-\x1f]+/g, '').trim() || 'world'
+    const zip = new yazl.ZipFile()
+    let total = 0
+    for (const f of folders) {
+      for (const file of await listFiles(f.dir)) {
+        if (file.rel === 'session.lock') continue
+        zip.addFile(file.abs, `${safe}${f.suffix}/${file.rel}`)
+        total += file.size
+      }
+    }
+    zip.end()
+    let done = 0
+    zip.outputStream.on('data', (chunk: Buffer) => {
+      done += chunk.length
+      ctx.bytes(Math.min(done, total), total)
+    })
+    ctx.step(`Saving ${safe}.zip`)
+    await pipeline(zip.outputStream, createWriteStream(`${dest}.part`), { signal: ctx.signal })
+    await rename(`${dest}.part`, dest)
   }
 
   async removeWorld(id: string, slot: string): Promise<void> {

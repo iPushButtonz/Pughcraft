@@ -89,4 +89,6 @@ export interface WorldInfo {
   sizeBytes: number
   mcVersion: string | null
   lastPlayed: string | null
+  /** A new world the server generates on its next start. */
+  pending?: boolean
 }

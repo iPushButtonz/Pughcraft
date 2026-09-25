@@ -144,9 +144,25 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
     - Real client (owner's account via the official launcher, 1 player): just joined 0.42 s; after 60 s of creative sprint-flying 0.65 s (42 MB new, 11 ms/tick); after 2 min hovering 0.23 s. Copies took 1–1.6 s.
     - Tick sampling across ~3.5 min with the real player showed no tick over 59 ms.
   - Dev only: `globalThis.__pughcraftDev` = {servers, backups, settings} for `cdp.mjs main` (not in packaged builds).
+- **Step 6 — Players, game rules, files, usage, auto-start, library move (done 2026-09-25).**
+  - **Owner decisions:**
+    - Join requests pop up inside the app with a sound.
+    - Every game rule is listed, left at Minecraft's normal values, with on/off descriptions.
+    - The Files tab is allowed, with a setting (on by default) for editing while a server runs.
+    - Servers can start with Pughcraft, chosen per server in Settings.
+  - **Players tab:** online, whitelist, operators, bans (player + IP), kick. Works live through the console, or while stopped by editing the JSON files (UUID from Mojang, or the offline UUID).
+  - **"Allow?" popup:** a player turned away by the whitelist shows a toast with a chime and Allow/Ignore. Detection is anchored on `]: ` so chat can't fake it (tests).
+  - **Game rules:** full catalog (26.x snake_case names, older camelCase, inverted `disable*` names). Read live with quiet console queries, or from `data/minecraft/game_rules.dat` / `level.dat` when stopped. Changes made while stopped apply on the next start. Reset all.
+  - **Files tab (Advanced):** browse, view/edit text (2 MB limit, binary detection), new folder, rename, Recycle Bin, add files, reveal. Paths can't escape the server folder.
+  - **CPU/RAM card** on Overview (sampled every 2 s while a server runs).
+  - **Worlds:** export as .zip, make a new world (name + seed).
+  - **Library move (Advanced):** copies servers/java/cache/tools, checks free space and cloud folders, switches over, removes the old copy, restarts.
+  - **Verified live on "Transfer world"** (Fabric 26.2) with the owner's real client: whitelist rejection → popup → Allow → rejoin; 58 rules read; pending rule applied on start; files; stats; export (173 entries); new world; library move away and back; auto-start from the moved library. Everything reset afterwards.
+  - Untested: Linux paths; packaged-build relaunch after a library move.
+  - Dev hook now also has players, gamerules, files.
 
 ## Next
-- Step 5 slider/default demo → owner feedback, then ask step-6 parameters (players/whitelist "Allow?" popup, ops/bans, game rules, file browser, library move, CPU/RAM).
+- Ask the RAM-recommendation parameters and step-7 parameters (mods/plugins browser, updates, blocked-mod flow, player pack export, modpack browser) before building them.
 - **Step 4 background (done).** Owner decisions 2026-09-24:
   - **Dropping a single world asks:** "Make a new server" (pre-selected) or "Add to <existing server> as another world".
   - **The Import screen scans installed launchers when it opens.** Covers the official launcher, Prism, the CurseForge app and the Modrinth App. It's local-only, read-only, and copies files, never changes them.
@@ -193,6 +209,7 @@ Read SPEC.md (source of truth) and this file at the start of every session. Upda
 - Zustand selectors must return stable values (no `.map`/`Object.values` inside a selector) or React loops forever.
 
 ## Open items / waiting on owner
+- **RAM recommendation from parameters** (owner request 2026-09-24, SPEC §14.7): recommend RAM from things like world download size, players online and render distance. Keep the RAM slider. **Don't implement until the owner has answered the parameter questions** (inputs, weights, where it shows, whether it updates live).
 - CurseForge API key: owner applies on the CurseForge developer console. Builds work without it.
 - SignPath Foundation: apply after the first public release.
 

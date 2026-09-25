@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowLeft, FolderOpen, MoreHorizontal, RotateCw, Trash2, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { LOADER_LABELS, type ServerSummary } from '@shared/servers'
@@ -32,7 +32,11 @@ import { NetworkPanel, useServerNetwork } from '@/components/network/NetworkPane
 import { ShareButton } from '@/components/network/ShareButton'
 import { WorldsPanel } from '@/components/servers/WorldsPanel'
 import { BackupsPanel } from '@/components/servers/BackupsPanel'
-import { useServer } from '@/stores/servers'
+import { PlayersPanel, PlayerMenu } from '@/components/servers/PlayersPanel'
+import { FilesPanel } from '@/components/servers/FilesPanel'
+import { useIsAdvanced } from '@/stores/settings'
+import { useServer, useServers } from '@/stores/servers'
+import { formatBytes } from '@shared/format'
 import { useTasks } from '@/stores/tasks'
 import { useNav } from '@/stores/nav'
 import { api } from '@/lib/api'
@@ -78,6 +82,46 @@ function JoinCard({ server }: { server: ServerSummary }) {
   )
 }
 
+function Meter({ label, value, fraction, hint }: { label: string; value: string; fraction: number | null; hint: string }) {
+  return (
+    <div className="space-y-1.5" title={hint}>
+      <div className="flex items-baseline justify-between text-sm">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium tabular-nums">{value}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${fraction !== null && fraction > 0.9 ? 'bg-warning' : 'bg-primary'}`}
+          style={{ width: `${Math.round((fraction ?? 0) * 100)}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function UsageCard({ server }: { server: ServerSummary }) {
+  const stats = useServers((s) => s.stats[server.config.id])
+  const maxBytes = server.config.memoryMb * 1024 * 1024
+  return (
+    <section className="space-y-4 rounded-xl border bg-card p-5">
+      <h3 className="text-sm font-semibold">{d.usage}</h3>
+      {!stats ? (
+        <p className="text-sm text-muted-foreground">{d.measuring}</p>
+      ) : (
+        <>
+          <Meter label={d.cpu} value={`${stats.cpuPercent.toFixed(0)}%`} fraction={stats.cpuPercent / 100} hint={d.cpuHint} />
+          <Meter
+            label={d.memory}
+            value={d.memoryOf(formatBytes(stats.memoryBytes), formatBytes(maxBytes))}
+            fraction={Math.min(1, stats.memoryBytes / maxBytes)}
+            hint={d.memoryHint}
+          />
+        </>
+      )}
+    </section>
+  )
+}
+
 function Overview({ server }: { server: ServerSummary }) {
   const task = useTasks((s) => (server.taskId ? s.tasks[server.taskId] : undefined))
   const audience = server.config.network?.audience ?? 'unset'
@@ -109,8 +153,9 @@ function Overview({ server }: { server: ServerSummary }) {
         )}
       </section>
       <JoinCard server={server} />
+      {server.status === 'running' && <UsageCard server={server} />}
       {server.status === 'running' && (
-        <section className="space-y-3 rounded-xl border bg-card p-5 lg:col-span-2">
+        <section className="space-y-3 rounded-xl border bg-card p-5">
           <h3 className="text-sm font-semibold">
             {d.playersOnline} · {t.servers.players(server.players.length, server.maxPlayers)}
           </h3>
@@ -119,8 +164,9 @@ function Overview({ server }: { server: ServerSummary }) {
           ) : (
             <ul className="flex flex-wrap gap-2">
               {server.players.map((p) => (
-                <li key={p} className="rounded-md border bg-muted/40 px-2.5 py-1 font-mono text-sm">
+                <li key={p} className="flex items-center gap-1 rounded-md border bg-muted/40 py-0.5 pr-0.5 pl-2.5 font-mono text-sm">
                   {p}
+                  <PlayerMenu serverId={server.config.id} name={p} />
                 </li>
               ))}
             </ul>
@@ -134,7 +180,12 @@ function Overview({ server }: { server: ServerSummary }) {
 export function ServerPage({ id }: { id: string }) {
   const server = useServer(id)
   const go = useNav((s) => s.go)
+  const advanced = useIsAdvanced()
   const [tab, setTab] = useState('overview')
+  // The Files tab only exists in Advanced; don't leave the page on a missing tab.
+  useEffect(() => {
+    if (!advanced && tab === 'files') setTab('overview')
+  }, [advanced, tab])
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (!server) {
@@ -233,6 +284,9 @@ export function ServerPage({ id }: { id: string }) {
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
         <TabsList>
           <TabsTrigger value="overview">{d.tabs.overview}</TabsTrigger>
+          <TabsTrigger value="players" disabled={!c.installed}>
+            {t.players.tab}
+          </TabsTrigger>
           <TabsTrigger value="network" disabled={!c.installed}>
             {t.network.tab}
           </TabsTrigger>
@@ -246,6 +300,11 @@ export function ServerPage({ id }: { id: string }) {
           <TabsTrigger value="settings" disabled={server.status === 'installing'}>
             {d.tabs.settings}
           </TabsTrigger>
+          {advanced && (
+            <TabsTrigger value="files" disabled={server.status === 'installing'}>
+              {t.files.tab}
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="overview" className="pt-2">
           <Overview server={server} />
@@ -265,6 +324,14 @@ export function ServerPage({ id }: { id: string }) {
         <TabsContent value="settings" className="pt-2">
           <ServerSettingsPanel server={server} />
         </TabsContent>
+        <TabsContent value="players" className="pt-2">
+          <PlayersPanel server={server} />
+        </TabsContent>
+        {advanced && (
+          <TabsContent value="files" className="pt-2">
+            <FilesPanel server={server} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>

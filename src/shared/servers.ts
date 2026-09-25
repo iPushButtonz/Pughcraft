@@ -43,6 +43,10 @@ export interface ServerConfig {
   network?: ServerNetworkConfig
   /** When this server backs itself up. Missing = the defaults. */
   backups?: BackupSchedule
+  /** Start this server when Pughcraft opens. */
+  autoStart?: boolean
+  /** Game rule changes made while stopped, applied on the next start (rule id → value). */
+  pendingGameRules?: Record<string, boolean | number>
 }
 
 export type ServerStatus = 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'crashed'

@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SettingRow, SettingSection } from '@/components/SettingRow'
 import { Segmented } from '@/components/Segmented'
+import { GameRulesSection } from '@/components/servers/GameRulesSection'
 import { useIsAdvanced } from '@/stores/settings'
 import { api } from '@/lib/api'
 import { errorMessage } from '@/lib/errors'
@@ -154,6 +155,8 @@ export function ServerSettingsPanel({ server }: { server: ServerSummary }) {
           </SettingRow>
         )}
       </SettingSection>
+
+      <GameRulesSection server={server} />
 
       <SettingSection title={s.players}>
         <SettingRow label={s.maxPlayers}>

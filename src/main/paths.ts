@@ -1,6 +1,8 @@
 import { app } from 'electron'
+import { readFileSync } from 'node:fs'
+import { rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { APP_NAME } from '@shared/brand'
 
 /**
@@ -26,5 +28,26 @@ export function configureAppPaths(): void {
 export const dataRoot = (): string => app.getPath('userData')
 export const settingsFile = (): string => join(dataRoot(), 'settings.json')
 export const logsDir = (): string => join(dataRoot(), 'logs')
-/** Servers, Java runtimes and the download cache. */
-export const libraryRoot = (): string => dataRoot()
+/** Remembers where the library was moved to (Settings → Library folder). */
+const pointerFile = (): string => join(dataRoot(), 'library.json')
+let library: string | null = null
+
+/** Servers, Java runtimes and the download cache. Read once; a move restarts the app. */
+export function libraryRoot(): string {
+  if (library) return library
+  try {
+    const p = (JSON.parse(readFileSync(pointerFile(), 'utf8')) as { path?: unknown }).path
+    if (typeof p === 'string' && isAbsolute(p)) library = p
+  } catch {
+    // No pointer: the library lives with the app data.
+  }
+  return (library ??= dataRoot())
+}
+
+export const isDefaultLibrary = (dir: string): boolean => resolve(dir) === resolve(dataRoot())
+
+/** Points the next start at a new library folder (null = back to the default). */
+export async function setLibraryPointer(dir: string | null): Promise<void> {
+  if (dir === null || isDefaultLibrary(dir)) await rm(pointerFile(), { force: true })
+  else await writeFile(pointerFile(), JSON.stringify({ path: dir }, null, 2))
+}

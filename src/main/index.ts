@@ -30,6 +30,11 @@ import { PlayitManager } from './net/playit'
 import { BoreManager } from './net/bore'
 import { ImportService } from './import/service'
 import { BackupManager } from './backups/manager'
+import { PlayerManager } from './servers/players'
+import { GameRuleManager } from './servers/gamerules'
+import { FileService } from './servers/files'
+import { StatsSampler } from './servers/stats'
+import { LibraryService } from './library'
 
 configureAppPaths()
 
@@ -93,9 +98,19 @@ async function start(): Promise<void> {
   await imports.init()
   const backups = new BackupManager({ servers, tasks, isQuitting: () => lifecycle.isQuitting })
   lifecycle.onShutdown('backups', () => backups.shutdown(), 60_000)
+  const players = new PlayerManager(servers)
+  const gamerules = new GameRuleManager(servers)
+  const files = new FileService(servers, settings)
+  const stats = new StatsSampler(servers)
+  lifecycle.onShutdown('stats', async () => stats.stop(), 1000)
+  const library = new LibraryService({
+    servers,
+    tasks,
+    busy: () => tasks.list().some((t) => t.status === 'running')
+  })
   // Dev builds only: lets scripts/cdp.mjs reach the managers for testing.
-  if (!app.isPackaged) Object.assign(globalThis, { __pughcraftDev: { servers, backups, settings } })
-  registerIpc({ settings, tasks, servers, network, imports, backups, mojang, appInfo })
+  if (!app.isPackaged) Object.assign(globalThis, { __pughcraftDev: { servers, backups, settings, players, gamerules, files } })
+  registerIpc({ settings, tasks, servers, network, imports, backups, players, gamerules, files, stats, library, mojang, appInfo })
 
   settings.on('change', (next, prev) => {
     if (next.theme !== prev.theme) nativeTheme.themeSource = next.theme
@@ -172,6 +187,8 @@ async function start(): Promise<void> {
   const startHidden = process.argv.includes(HIDDEN_ARG)
   mainWindow = openWindow(!startHidden)
   log.info(`ready (hidden start: ${startHidden})`)
+  // Servers the user picked in Settings → "Start automatically".
+  void servers.startAutoStartServers()
 }
 
 if (!app.requestSingleInstanceLock()) {

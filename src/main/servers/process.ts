@@ -37,6 +37,8 @@ export class ServerProcess extends EventEmitter<{
   private flushTimer: NodeJS.Timeout | null = null
   private exited: Promise<void>
   private markExited!: () => void
+  /** Lines a filter claims (answers to the app's own quiet commands) stay out of the console. */
+  private readonly filters = new Set<(text: string) => boolean>()
 
   constructor(
     private readonly buffer: ConsoleLine[],
@@ -90,6 +92,29 @@ export class ServerProcess extends EventEmitter<{
     return true
   }
 
+  get pid(): number | null {
+    return this.child?.pid ?? null
+  }
+
+  /** Sends commands without echoing them, and keeps lines `claim` accepts out of the console. */
+  async quiet(commands: string[], claim: (text: string) => boolean, windowMs: number): Promise<string[]> {
+    if (!this.child || this.phase === 'exited') return []
+    const seen: string[] = []
+    const filter = (text: string): boolean => {
+      if (!claim(text)) return false
+      seen.push(text)
+      return true
+    }
+    this.filters.add(filter)
+    try {
+      for (const c of commands) this.child.stdin.write(`${c.replace(/[\r\n]+/g, ' ').trim()}\n`)
+      await new Promise((r) => setTimeout(r, windowMs))
+    } finally {
+      this.filters.delete(filter)
+    }
+    return seen
+  }
+
   /** Resolves true when a console line matches `re`, false on timeout or exit. */
   waitForLine(re: RegExp, timeoutMs: number): Promise<boolean> {
     return new Promise((resolve) => {
@@ -132,7 +157,9 @@ export class ServerProcess extends EventEmitter<{
   }
 
   private onLine(text: string, source: 'out' | 'err'): void {
-    this.push({ seq: this.nextSeq(), text, source })
+    let claimed = false
+    for (const f of this.filters) if (f(text)) claimed = true
+    if (!claimed) this.push({ seq: this.nextSeq(), text, source })
     if (this.phase === 'starting' && DONE.test(text)) this.setPhase('running')
     const joined = JOINED.exec(text)
     if (joined) {
