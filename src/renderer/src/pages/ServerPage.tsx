@@ -32,7 +32,7 @@ import { NetworkPanel, useServerNetwork } from '@/components/network/NetworkPane
 import { ShareButton } from '@/components/network/ShareButton'
 import { WorldsPanel } from '@/components/servers/WorldsPanel'
 import { BackupsPanel } from '@/components/servers/BackupsPanel'
-import { PlayersPanel, PlayerMenu } from '@/components/servers/PlayersPanel'
+import { PlayerMenu } from '@/components/servers/PlayersPanel'
 import { FilesPanel } from '@/components/servers/FilesPanel'
 import { useIsAdvanced } from '@/stores/settings'
 import { useServer, useServers } from '@/stores/servers'
@@ -284,9 +284,6 @@ export function ServerPage({ id }: { id: string }) {
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
         <TabsList>
           <TabsTrigger value="overview">{d.tabs.overview}</TabsTrigger>
-          <TabsTrigger value="players" disabled={!c.installed}>
-            {t.players.tab}
-          </TabsTrigger>
           <TabsTrigger value="network" disabled={!c.installed}>
             {t.network.tab}
           </TabsTrigger>
@@ -323,9 +320,6 @@ export function ServerPage({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="settings" className="pt-2">
           <ServerSettingsPanel server={server} />
-        </TabsContent>
-        <TabsContent value="players" className="pt-2">
-          <PlayersPanel server={server} />
         </TabsContent>
         {advanced && (
           <TabsContent value="files" className="pt-2">

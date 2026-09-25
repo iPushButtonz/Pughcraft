@@ -128,6 +128,8 @@ export interface SimpleProperties {
 
 export interface ServerPropertiesView {
   simple: SimpleProperties
+  /** Every key currently in the file, for the settings form. */
+  values: Record<string, string>
   /** The whole file as text, for the Advanced editor. */
   raw: string
   /** False before the first start, when the server hasn't written its full file yet. */

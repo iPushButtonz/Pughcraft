@@ -47,6 +47,10 @@ const api: PughcraftApi = {
     properties: (id) => invoke(IPC.serversProperties, id),
     setSimple: (id, patch) => invoke(IPC.serversSetSimple, id, patch),
     setRaw: (id, text) => invoke(IPC.serversSetRaw, id, text),
+    setProperties: (id, values) => invoke(IPC.serversSetProperties, id, values),
+    icon: (id) => invoke(IPC.serversIcon, id),
+    setIcon: (id, imagePath) => invoke(IPC.serversSetIcon, id, imagePath),
+    pickIcon: (id) => invoke(IPC.serversPickIcon, id),
     update: (id, patch) => invoke(IPC.serversUpdate, id, patch),
     remove: (id) => invoke(IPC.serversRemove, id),
     openFolder: (id) => invoke(IPC.serversOpenFolder, id),
@@ -102,6 +106,7 @@ const api: PughcraftApi = {
   imports: {
     scan: () => invoke(IPC.importsScan),
     pick: (kind) => invoke(IPC.importsPick, kind),
+    pickIcon: () => invoke(IPC.importsPickIcon),
     pathForFile: (file) => webUtils.getPathForFile(file),
     analyze: (path) => invoke(IPC.importsAnalyze, path),
     run: (request) => invoke(IPC.importsRun, request),
@@ -111,7 +116,7 @@ const api: PughcraftApi = {
     list: (serverId) => invoke(IPC.worldsList, serverId),
     activate: (serverId, slot) => invoke(IPC.worldsActivate, serverId, slot),
     remove: (serverId, slot) => invoke(IPC.worldsRemove, serverId, slot),
-    create: (serverId, name, seed) => invoke(IPC.worldsCreate, serverId, name, seed),
+    create: (serverId, name, seed, options) => invoke(IPC.worldsCreate, serverId, name, seed, options),
     exportZip: (serverId, slot) => invoke(IPC.worldsExport, serverId, slot),
     onChanged: (listener) => subscribe(IPC.worldsChanged, listener)
   },

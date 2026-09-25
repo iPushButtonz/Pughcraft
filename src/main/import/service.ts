@@ -91,7 +91,7 @@ export class ImportService {
   async analyze(sourcePath: string): Promise<ImportAnalysis> {
     this.expire()
     const id = `a${Date.now().toString(36)}${(this.counter++).toString(36)}`
-    const { result } = this.deps.tasks.run(`Checking ${basename(sourcePath)}`, (ctx) =>
+    const { result } = this.deps.tasks.run(`Installing ${basename(sourcePath)}`, (ctx) =>
       analyzeSource(sourcePath, { ctx, stagingDir: this.deps.stagingDir, mojang: this.deps.mojang, id })
     )
     const details = await result
@@ -138,6 +138,8 @@ export class ImportService {
     const populate = async (ctx: TaskContext, dir: string): Promise<{ launch?: typeof d.launch }> => {
       const notes = await this.populate(ctx, dir, d, req)
       for (const n of notes) log.info(n)
+      const icon = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(req.iconDataUrl ?? '')
+      if (icon) await writeFile(join(dir, 'server-icon.png'), Buffer.from(icon[1], 'base64'))
       await this.discard(req.analysisId)
       return { launch: a.kind === 'server' && detectedSame ? d.launch : null }
     }

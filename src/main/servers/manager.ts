@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { createWriteStream, existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 import { basename, join, relative, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -18,7 +18,7 @@ import type {
   SimpleProperties
 } from '@shared/servers'
 import { DEFAULT_NETWORK, type ServerNetworkConfig } from '@shared/network'
-import type { WorldInfo } from '@shared/imports'
+import type { NewWorldOptions, WorldInfo } from '@shared/imports'
 import { DEFAULT_BACKUP_SCHEDULE, type BackupSchedule } from '@shared/backups'
 import type { SettingsStore } from '../settings'
 import type { TaskContext, TaskManager } from '../tasks'
@@ -107,9 +107,9 @@ async function listFiles(dir: string): Promise<{ abs: string; rel: string; size:
   return out
 }
 
-async function writeAtomic(file: string, text: string): Promise<void> {
+async function writeAtomic(file: string, data: string | Buffer): Promise<void> {
   const tmp = `${file}.tmp`
-  await writeFile(tmp, text, 'utf8')
+  await writeFile(tmp, data)
   await rename(tmp, file)
 }
 
@@ -614,9 +614,59 @@ export class ServerManager extends EventEmitter<{
     const complete = props.has('level-name')
     return {
       simple: readSimple(props, await this.features(e.config.mcVersion), complete),
+      values: props.toObject(),
       raw: props.serialize(),
       complete
     }
+  }
+
+  /** Sets any number of server.properties keys (the settings form). */
+  async setProperties(id: string, values: Record<string, string>): Promise<ServerPropertiesView> {
+    const e = this.entry(id)
+    const props = await this.readProps(id)
+    const f = await this.features(e.config.mcVersion)
+    const modes: Record<string, string[]> = {
+      gamemode: ['survival', 'creative', 'adventure', 'spectator'],
+      difficulty: ['peaceful', 'easy', 'normal', 'hard']
+    }
+    for (const [key, raw] of Object.entries(values)) {
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(key)) throw new Error(`Unknown setting: ${key}`)
+      let value = String(raw).replace(/[\r\n]+/g, ' ').slice(0, 2000)
+      const names = modes[key]
+      if (names) {
+        const current = props.get(key)
+        const numeric = current !== undefined ? /^\d+$/.test(current.trim()) : f.numericModes
+        if (numeric && names.includes(value)) value = String(names.indexOf(value))
+      }
+      props.set(key, value)
+      if (key === 'white-list' && f.enforceWhitelist) props.set('enforce-whitelist', value)
+    }
+    await writeAtomic(join(this.serverDir(id), 'server.properties'), props.serialize())
+    if (values['max-players'] !== undefined) e.maxPlayers = Number(props.get('max-players'))
+    const port = Number(props.get('server-port'))
+    if (values['server-port'] !== undefined && Number.isInteger(port) && port > 0 && port < 65536 && port !== e.config.port) {
+      e.config.port = port
+      await this.saveConfig(e)
+    }
+    this.markRestartNeeded(e)
+    return this.properties(id)
+  }
+
+  async icon(id: string): Promise<string | null> {
+    this.entry(id)
+    const file = join(this.serverDir(id), 'server-icon.png')
+    if (!existsSync(file)) return null
+    return `data:image/png;base64,${(await readFile(file)).toString('base64')}`
+  }
+
+  /** Writes (or with null, removes) server-icon.png. Minecraft reads it on start. */
+  async setIcon(id: string, png: Buffer | null): Promise<string | null> {
+    const e = this.entry(id)
+    const file = join(this.serverDir(id), 'server-icon.png')
+    if (png) await writeAtomic(file, png)
+    else await rm(file, { force: true })
+    this.markRestartNeeded(e)
+    return this.icon(id)
   }
 
   private markRestartNeeded(e: Entry): void {
@@ -854,14 +904,22 @@ export class ServerManager extends EventEmitter<{
   }
 
   /** Parks the current world; the server generates a fresh one (optionally from `seed`) on its next start. */
-  async newWorld(id: string, name: string, seed: string): Promise<void> {
+  async newWorld(id: string, name: string, seed: string, options: NewWorldOptions = {}): Promise<void> {
     const e = this.entry(id)
     if (e.proc) throw new Error('Stop the server before making a new world.')
     const clean = name.trim().slice(0, 40)
     if (!clean) throw new Error('Give the new world a name.')
-    const props = await this.readProps(id)
-    props.set('level-seed', seed.trim().slice(0, 64))
-    await writeAtomic(join(this.serverDir(id), 'server.properties'), props.serialize())
+    const values: Record<string, string> = { 'level-seed': seed.trim().slice(0, 64) }
+    if (options.levelType) values['level-type'] = options.levelType
+    if (options.generatorSettings !== undefined) values['generator-settings'] = options.generatorSettings
+    if (options.generateStructures !== undefined) values['generate-structures'] = String(options.generateStructures)
+    if (options.gamemode) values.gamemode = options.gamemode
+    if (options.difficulty) values.difficulty = options.difficulty
+    if (options.hardcore !== undefined) values.hardcore = String(options.hardcore)
+    if (options.maxWorldSize !== undefined) {
+      values['max-world-size'] = String(Math.min(29999984, Math.max(1, Math.round(options.maxWorldSize))))
+    }
+    await this.setProperties(id, values)
     await this.worldStore(id).createNew(clean)
     this.appLine(e, `Made room for a new world, “${clean}”. It's generated on the next start.`)
     this.emit('worlds', id)

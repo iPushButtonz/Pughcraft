@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Download, Globe2, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import type { WorldInfo } from '@shared/imports'
@@ -25,6 +27,15 @@ import { timeAgo } from '@/lib/time'
 import { t } from '@/strings'
 
 const w = t.worlds
+const WORLD_TYPES: [string, string][] = [
+  ['minecraft:normal', 'Default'],
+  ['minecraft:flat', 'Superflat'],
+  ['minecraft:large_biomes', 'Large biomes'],
+  ['minecraft:amplified', 'Amplified'],
+  ['minecraft:single_biome_surface', 'Single biome']
+]
+const GAMEMODES: [string, string][] = [['survival', 'Survival'], ['creative', 'Creative'], ['adventure', 'Adventure'], ['spectator', 'Spectator']]
+const DIFFICULTIES: [string, string][] = [['peaceful', 'Peaceful'], ['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']]
 
 export function WorldsPanel({ server }: { server: ServerSummary }) {
   const id = server.config.id
@@ -36,6 +47,13 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
   const [newSeed, setNewSeed] = useState('')
+  const [levelType, setLevelType] = useState('minecraft:normal')
+  const [generator, setGenerator] = useState('{}')
+  const [structures, setStructures] = useState(true)
+  const [gamemode, setGamemode] = useState('survival')
+  const [difficulty, setDifficulty] = useState('easy')
+  const [hardcore, setHardcore] = useState(false)
+  const [worldSize, setWorldSize] = useState('29999984')
   const stopped = server.status === 'stopped' || server.status === 'crashed'
 
   const load = useCallback(() => api.worlds.list(id).then(setWorlds), [id])
@@ -140,7 +158,7 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
 
       <ImportDialog open={adding} onOpenChange={setAdding} targetServerId={id} />
       <Dialog open={creating} onOpenChange={(o) => !busy && setCreating(o)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -149,7 +167,15 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
               setBusy(true)
               void act(async () => {
                 try {
-                  await api.worlds.create(id, newName.trim(), newSeed.trim())
+                  await api.worlds.create(id, newName.trim(), newSeed.trim(), {
+                    levelType,
+                    generatorSettings: levelType === 'minecraft:flat' || levelType === 'minecraft:single_biome_surface' ? generator : '{}',
+                    generateStructures: structures,
+                    gamemode,
+                    difficulty,
+                    hardcore,
+                    maxWorldSize: Number(worldSize) || undefined
+                  })
                   toast.success(w.created)
                   setCreating(false)
                   setNewName('')
@@ -172,6 +198,59 @@ export function WorldsPanel({ server }: { server: ServerSummary }) {
               <Label htmlFor="new-world-seed">{w.newWorldSeed}</Label>
               <Input id="new-world-seed" maxLength={64} placeholder={w.newWorldSeedHint} value={newSeed} onChange={(e) => setNewSeed(e.target.value)} />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>{w.worldType}</Label>
+                <Select value={levelType} onValueChange={setLevelType}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {WORLD_TYPES.map(([v, label]) => (
+                      <SelectItem key={v} value={v}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{w.gamemode}</Label>
+                <Select value={gamemode} onValueChange={setGamemode}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {GAMEMODES.map(([v, label]) => (
+                      <SelectItem key={v} value={v}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{w.difficulty}</Label>
+                <Select value={difficulty} onValueChange={setDifficulty}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DIFFICULTIES.map(([v, label]) => (
+                      <SelectItem key={v} value={v}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-world-size">{w.worldSize}</Label>
+                <Input id="new-world-size" inputMode="numeric" value={worldSize} onChange={(e) => setWorldSize(e.target.value.replace(/\D/g, ''))} />
+              </div>
+            </div>
+            {(levelType === 'minecraft:flat' || levelType === 'minecraft:single_biome_surface') && (
+              <div className="space-y-2">
+                <Label htmlFor="new-world-gen">{w.generator}</Label>
+                <Input id="new-world-gen" value={generator} onChange={(e) => setGenerator(e.target.value)} />
+              </div>
+            )}
+            <label className="flex items-center justify-between text-sm">
+              {w.structures}
+              <Switch checked={structures} onCheckedChange={setStructures} />
+            </label>
+            <label className="flex items-center justify-between text-sm">
+              {w.hardcore}
+              <Switch checked={hardcore} onCheckedChange={setHardcore} />
+            </label>
             <DialogFooter>
               <Button type="button" variant="outline" disabled={busy} onClick={() => setCreating(false)}>
                 {t.create.cancel}

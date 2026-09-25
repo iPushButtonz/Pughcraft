@@ -1,14 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronDown, ImagePlus, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import type {
-  Difficulty,
-  Gamemode,
-  MemoryInfo,
-  PerformancePreset,
-  ServerPropertiesView,
-  ServerSummary,
-  SimpleProperties
-} from '@shared/servers'
+import type { MemoryInfo, ServerPropertiesView, ServerSummary } from '@shared/servers'
+import { PROPERTY_DEFS, PROPERTY_SECTIONS, describeProperty, type PropertyDef, type PropertySection } from '@shared/properties'
 import type { ServerConfigPatch } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,8 +11,8 @@ import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SettingRow, SettingSection } from '@/components/SettingRow'
-import { Segmented } from '@/components/Segmented'
 import { GameRulesSection } from '@/components/servers/GameRulesSection'
+import { PlayersPanel } from '@/components/servers/PlayersPanel'
 import { useIsAdvanced } from '@/stores/settings'
 import { api } from '@/lib/api'
 import { errorMessage } from '@/lib/errors'
@@ -46,6 +40,138 @@ function CommitInput({
   )
 }
 
+const Hint = ({ children }: { children: React.ReactNode }) => (children ? <span className="text-xs">{children}</span> : null)
+
+/** One server.properties key as the right kind of control. */
+function PropertyRow({ def, value, onSet }: { def: PropertyDef; value: string; onSet: (key: string, value: string) => void }) {
+  let control: React.ReactNode
+  if (def.type === 'bool') {
+    control = <Switch checked={value.trim().toLowerCase() === 'true'} onCheckedChange={(on) => onSet(def.key, String(on))} />
+  } else if (def.type === 'int') {
+    control = (
+      <CommitInput
+        className="w-32"
+        inputMode="numeric"
+        value={value}
+        onCommit={(v) => {
+          const n = Math.round(Number(v))
+          if (v.trim() === '' || !Number.isFinite(n)) {
+            toast.error(s.needNumber)
+            return
+          }
+          onSet(def.key, String(Math.min(def.max, Math.max(def.min, n))))
+        }}
+      />
+    )
+  } else if (def.type === 'enum') {
+    const options = def.options.some((o) => o.value === value) ? def.options : [{ value, label: value }, ...def.options]
+    control = (
+      <Select value={value} onValueChange={(v) => onSet(def.key, v)}>
+        <SelectTrigger className="w-56">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  } else {
+    control = (
+      <CommitInput
+        className={def.wide ? 'w-80' : 'w-56'}
+        type={def.secret ? 'password' : 'text'}
+        value={value}
+        onCommit={(v) => onSet(def.key, v)}
+      />
+    )
+  }
+  return (
+    <SettingRow label={def.label} hint={<Hint>{describeProperty(def, value)}</Hint>}>
+      <div className="flex items-center gap-3">
+        <code className="hidden text-xs text-muted-foreground sm:inline">{def.key}</code>
+        {control}
+      </div>
+    </SettingRow>
+  )
+}
+
+/** server-icon.png: drop an image on the square or click it to pick one. */
+function IconRow({ serverId }: { serverId: string }) {
+  const [icon, setIcon] = useState<string | null>(null)
+  const [over, setOver] = useState(false)
+  useEffect(() => {
+    void api.servers.icon(serverId).then(setIcon)
+  }, [serverId])
+
+  const run = (fn: () => Promise<string | null>, keepOnNull = false): void => {
+    void fn().then(
+      (next) => (next !== null || !keepOnNull) && setIcon(next),
+      (err) => toast.error(errorMessage(err))
+    )
+  }
+
+  return (
+    <SettingRow label={s.icon} hint={<Hint>{s.iconHint}</Hint>}>
+      <div className="flex items-center gap-3">
+        {icon && (
+          <Button variant="ghost" size="sm" onClick={() => run(() => api.servers.setIcon(serverId, null))}>
+            {s.iconRemove}
+          </Button>
+        )}
+        <button
+          type="button"
+          data-drop-zone
+          title={s.iconDrop}
+          aria-label={s.iconDrop}
+          className={`flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border-2 border-dashed transition-colors ${
+            over ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/60'
+          }`}
+          onClick={() => run(() => api.servers.pickIcon(serverId), true)}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setOver(true)
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setOver(false)
+            const file = e.dataTransfer.files[0]
+            if (!file) return
+            if (!/\.(png|jpe?g|bmp|gif)$/i.test(file.name)) {
+              toast.error(s.iconNotImage)
+              return
+            }
+            run(() => api.servers.setIcon(serverId, api.imports.pathForFile(file)))
+          }}
+        >
+          {icon ? (
+            <img src={icon} alt="" className="size-full [image-rendering:pixelated]" />
+          ) : (
+            <ImagePlus className="size-6 text-muted-foreground" />
+          )}
+        </button>
+      </div>
+    </SettingRow>
+  )
+}
+
+function Collapsible({ title, count, defaultOpen, children }: { title: string; count?: number; defaultOpen?: boolean; children: React.ReactNode }) {
+  return (
+    <details open={defaultOpen} className="group space-y-1">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase select-none">
+        <ChevronDown className="size-4 transition-transform group-not-open:-rotate-90" />
+        {title}
+        {count !== undefined && <span className="font-normal normal-case">({count})</span>}
+      </summary>
+      {children}
+    </details>
+  )
+}
+
 export function ServerSettingsPanel({ server }: { server: ServerSummary }) {
   const id = server.config.id
   const advanced = useIsAdvanced()
@@ -54,6 +180,7 @@ export function ServerSettingsPanel({ server }: { server: ServerSummary }) {
   const [raw, setRaw] = useState('')
   const [jvm, setJvm] = useState(server.config.jvmArgs.join('\n'))
   const [memDraft, setMemDraft] = useState(server.config.memoryMb)
+  const [query, setQuery] = useState('')
 
   const reload = useCallback(async () => {
     const v = await api.servers.properties(id)
@@ -72,10 +199,10 @@ export function ServerSettingsPanel({ server }: { server: ServerSummary }) {
   useEffect(() => setJvm(server.config.jvmArgs.join('\n')), [server.config.jvmArgs])
   useEffect(() => setMemDraft(server.config.memoryMb), [server.config.memoryMb])
 
-  const setSimple = async (patch: Partial<SimpleProperties>): Promise<void> => {
-    if (view) setView({ ...view, simple: { ...view.simple, ...patch } })
+  const setProperty = async (key: string, value: string): Promise<void> => {
+    if (view) setView({ ...view, values: { ...view.values, [key]: value } })
     try {
-      const next = await api.servers.setSimple(id, patch)
+      const next = await api.servers.setProperties(id, { [key]: value })
       setView(next)
       setRaw(next.raw)
     } catch (err) {
@@ -93,95 +220,27 @@ export function ServerSettingsPanel({ server }: { server: ServerSummary }) {
     }
   }
 
+  const grouped = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const out = new Map<PropertySection, PropertyDef[]>()
+    for (const def of PROPERTY_DEFS) {
+      if (def.optional && !(view && def.key in view.values)) continue
+      if (q && !def.label.toLowerCase().includes(q) && !def.key.toLowerCase().includes(q)) continue
+      out.set(def.section, [...(out.get(def.section) ?? []), def])
+    }
+    return out
+  }, [query, view])
+
   if (!view) return null
-  const p = view.simple
+  const searching = query.trim() !== ''
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 pb-10">
+    <div className="mx-auto max-w-3xl space-y-8 pb-10">
       {!view.complete && <p className="text-sm text-muted-foreground">{s.firstStartNote}</p>}
 
       <SettingSection title={s.general}>
         <SettingRow label={s.name}>
           <CommitInput className="w-64" value={server.config.name} maxLength={40} onCommit={(v) => void updateConfig({ name: v })} />
-        </SettingRow>
-        <SettingRow label={s.motd}>
-          <CommitInput className="w-64" value={p.motd} maxLength={120} onCommit={(v) => void setSimple({ motd: v })} />
-        </SettingRow>
-      </SettingSection>
-
-      <SettingSection title={s.gameplay}>
-        <SettingRow label={s.gamemode}>
-          <Select value={p.gamemode} onValueChange={(v) => void setSimple({ gamemode: v as Gamemode })}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(s.gamemodes) as Gamemode[]).map((g) => (
-                <SelectItem key={g} value={g}>
-                  {s.gamemodes[g]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </SettingRow>
-        <SettingRow label={s.difficulty}>
-          <Select value={p.difficulty} onValueChange={(v) => void setSimple({ difficulty: v as Difficulty })}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(s.difficulties) as Difficulty[]).map((d) => (
-                <SelectItem key={d} value={d}>
-                  {s.difficulties[d]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </SettingRow>
-        <SettingRow label={s.hardcore} hint={s.hardcoreHint}>
-          <Switch checked={p.hardcore} onCheckedChange={(v) => void setSimple({ hardcore: v })} />
-        </SettingRow>
-        {p.pvp !== null && (
-          <SettingRow label={s.pvp}>
-            <Switch checked={p.pvp} onCheckedChange={(v) => void setSimple({ pvp: v })} />
-          </SettingRow>
-        )}
-        <SettingRow label={s.allowFlight} hint={s.allowFlightHint}>
-          <Switch checked={p.allowFlight} onCheckedChange={(v) => void setSimple({ allowFlight: v })} />
-        </SettingRow>
-        {p.commandBlocks !== null && (
-          <SettingRow label={s.commandBlocks}>
-            <Switch checked={p.commandBlocks} onCheckedChange={(v) => void setSimple({ commandBlocks: v })} />
-          </SettingRow>
-        )}
-      </SettingSection>
-
-      <GameRulesSection server={server} />
-
-      <SettingSection title={s.players}>
-        <SettingRow label={s.maxPlayers}>
-          <CommitInput
-            className="w-24"
-            inputMode="numeric"
-            value={String(p.maxPlayers)}
-            onCommit={(v) => void setSimple({ maxPlayers: Number(v) || p.maxPlayers })}
-          />
-        </SettingRow>
-        <SettingRow label={s.whitelist} hint={s.whitelistHint}>
-          <Switch checked={p.whitelist} onCheckedChange={(v) => void setSimple({ whitelist: v })} />
-        </SettingRow>
-      </SettingSection>
-
-      <SettingSection title={s.performance}>
-        <SettingRow label={s.performanceLabel} hint={s.performanceHint}>
-          <div className="flex flex-col items-end gap-1">
-            <Segmented<PerformancePreset | 'custom'>
-              value={p.performance}
-              options={(['low', 'balanced', 'high'] as const).map((v) => ({ value: v, label: s.performances[v] }))}
-              onChange={(v) => v !== 'custom' && void setSimple({ performance: v })}
-            />
-            {p.performance === 'custom' && <span className="text-xs text-muted-foreground">{s.performances.custom}</span>}
-          </div>
         </SettingRow>
         {memory && !advanced && (
           <SettingRow label={`${s.memory}: ${gb(memDraft)}`} stacked>
@@ -196,6 +255,38 @@ export function ServerSettingsPanel({ server }: { server: ServerSummary }) {
           </SettingRow>
         )}
       </SettingSection>
+
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input className="pl-9" placeholder={s.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
+
+      {[...grouped.entries()].map(([section, defs]) => (
+        <Collapsible key={section} title={PROPERTY_SECTIONS[section]} count={defs.length} defaultOpen={searching || section === 'world' || section === 'gameplay'}>
+          <div className="divide-y rounded-lg border bg-card px-4">
+            {defs.map((def) => (
+              <Fragment key={def.key}>
+                <PropertyRow
+                  def={def}
+                  value={view.values[def.key] ?? String(def.default)}
+                  onSet={(k, v) => void setProperty(k, v)}
+                />
+                {def.key === 'motd' && <IconRow serverId={id} />}
+              </Fragment>
+            ))}
+          </div>
+        </Collapsible>
+      ))}
+      {searching && grouped.size === 0 && <p className="text-sm text-muted-foreground">{s.noMatch}</p>}
+
+      {!searching && (
+        <>
+          <GameRulesSection server={server} />
+          <Collapsible title={t.players.tab} defaultOpen>
+            <PlayersPanel server={server} />
+          </Collapsible>
+        </>
+      )}
 
       {advanced && (
         <>

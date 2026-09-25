@@ -1,7 +1,7 @@
 {
   "name": "pughcraft",
   "productName": "Pughcraft",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Host a Minecraft: Java Edition server on your own PC in a few clicks.",
   "main": "./out/main/index.js",
   "author": "iPushButtonz",

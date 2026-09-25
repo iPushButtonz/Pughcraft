@@ -374,6 +374,9 @@ export function BackupsPanel({ server }: { server: ServerSummary }) {
             onCommit={(v) => setSchedule({ intervalMinutes: v })}
           />
         </SettingRow>
+        <SettingRow label={b.onEmpty}>
+          <Switch checked={s.onEmpty} onCheckedChange={(on) => setSchedule({ onEmpty: on })} />
+        </SettingRow>
         <SettingRow label={b.onStop} hint={b.onStopHint}>
           <Switch checked={s.onStop} onCheckedChange={(on) => setSchedule({ onStop: on })} />
         </SettingRow>

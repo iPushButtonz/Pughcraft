@@ -1,6 +1,6 @@
 import type { Settings, SettingsPatch } from './settings'
 import type { Audience, DoctorReport, PlayitStatus, ServerNetworkView } from './network'
-import type { FoundItem, ImportAnalysis, ImportRequest, WorldInfo } from './imports'
+import type { FoundItem, ImportAnalysis, ImportRequest, NewWorldOptions, PickedIcon, WorldInfo } from './imports'
 import type { TaskSnapshot } from './tasks'
 import type { BackupSchedule, BackupsView, RestoreMode } from './backups'
 import type { FileContent, FileEntry, JoinRequest, PlayerActionRequest, PlayersView, ServerStats } from './players'
@@ -87,6 +87,13 @@ export interface PughcraftApi {
     properties(id: string): Promise<ServerPropertiesView>
     setSimple(id: string, patch: Partial<SimpleProperties>): Promise<ServerPropertiesView>
     setRaw(id: string, text: string): Promise<ServerPropertiesView>
+    setProperties(id: string, values: Record<string, string>): Promise<ServerPropertiesView>
+    /** The server's server-icon.png as a data URL, or null. */
+    icon(id: string): Promise<string | null>
+    /** Sets the icon from an image file (resized to 64×64), or removes it with null. Returns the new icon. */
+    setIcon(id: string, imagePath: string | null): Promise<string | null>
+    /** Opens a file picker and sets the icon; null if cancelled. */
+    pickIcon(id: string): Promise<string | null>
     update(id: string, patch: ServerConfigPatch): Promise<ServerSummary>
     remove(id: string): Promise<void>
     openFolder(id: string): Promise<void>
@@ -154,6 +161,8 @@ export interface PughcraftApi {
     /** Worlds and modded instances found in launchers installed on this PC (read-only). */
     scan(): Promise<FoundItem[]>
     pick(kind: 'file' | 'folder'): Promise<string | null>
+    /** Choose an image; returns it resized to a 64x64 PNG. */
+    pickIcon(): Promise<PickedIcon | null>
     /** The real path of a file dropped onto the window. */
     pathForFile(file: File): string
     analyze(path: string): Promise<ImportAnalysis>
@@ -165,7 +174,7 @@ export interface PughcraftApi {
     activate(serverId: string, slot: string): Promise<void>
     remove(serverId: string, slot: string): Promise<void>
     /** Makes a fresh world (after a safety backup); generated on the next start. */
-    create(serverId: string, name: string, seed: string): Promise<void>
+    create(serverId: string, name: string, seed: string, options?: NewWorldOptions): Promise<void>
     /** Asks where to save; returns a task id, or null when cancelled. */
     exportZip(serverId: string, slot: string): Promise<string | null>
     onChanged(listener: (serverId: string) => void): () => void
@@ -215,6 +224,10 @@ export const IPC = {
   serversProperties: 'servers:properties',
   serversSetSimple: 'servers:set-simple',
   serversSetRaw: 'servers:set-raw',
+  serversSetProperties: 'servers:set-properties',
+  serversIcon: 'servers:icon',
+  serversSetIcon: 'servers:set-icon',
+  serversPickIcon: 'servers:pick-icon',
   serversUpdate: 'servers:update',
   serversRemove: 'servers:remove',
   serversOpenFolder: 'servers:open-folder',
@@ -235,6 +248,7 @@ export const IPC = {
   networkChanged: 'network:changed',
   importsScan: 'imports:scan',
   importsPick: 'imports:pick',
+  importsPickIcon: 'imports:pick-icon',
   importsAnalyze: 'imports:analyze',
   importsRun: 'imports:run',
   importsDiscard: 'imports:discard',

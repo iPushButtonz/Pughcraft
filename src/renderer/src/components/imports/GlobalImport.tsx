@@ -35,10 +35,12 @@ export function GlobalImport() {
   useEffect(() => {
     let depth = 0
     const hasFiles = (e: DragEvent): boolean => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files')
+    // Elements marked data-drop-zone (like the server icon) take their own drops.
+    const inZone = (e: DragEvent): boolean => e.target instanceof Element && !!e.target.closest('[data-drop-zone]')
     const enter = (e: DragEvent): void => {
       if (!hasFiles(e) || useImportUi.getState().open) return
       depth++
-      setDragging(true)
+      setDragging(!inZone(e))
     }
     const leave = (): void => {
       depth = Math.max(0, depth - 1)
@@ -50,7 +52,7 @@ export function GlobalImport() {
     const drop = (e: DragEvent): void => {
       depth = 0
       setDragging(false)
-      if (!hasFiles(e) || useImportUi.getState().open) return
+      if (!hasFiles(e) || useImportUi.getState().open || inZone(e)) return
       e.preventDefault()
       const file = e.dataTransfer?.files[0]
       if (file) show(api.imports.pathForFile(file))

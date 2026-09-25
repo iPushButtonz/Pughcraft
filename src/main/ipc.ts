@@ -1,8 +1,8 @@
-import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, nativeImage, shell, type IpcMainInvokeEvent } from 'electron'
 import { mkdir } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import type { BackupSchedule } from '@shared/backups'
-import type { ImportRequest } from '@shared/imports'
+import type { ImportRequest, NewWorldOptions } from '@shared/imports'
 import type { ImportService } from './import/service'
 import type { BackupManager } from './backups/manager'
 import type { PlayerManager } from './servers/players'
@@ -62,6 +62,24 @@ function broadcast(channel: string, payload: unknown): void {
   }
 }
 
+async function pickIconFile(): Promise<string | null> {
+  const win = BrowserWindow.getFocusedWindow()
+  const opts: Electron.OpenDialogOptions = {
+    title: 'Choose a server icon',
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif'] }]
+  }
+  const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+  return res.canceled ? null : (res.filePaths[0] ?? null)
+}
+
+/** Any image file as the 64×64 PNG Minecraft wants for server-icon.png. */
+function iconPng(file: string): Buffer {
+  const img = nativeImage.createFromPath(file)
+  if (img.isEmpty()) throw new Error('That file could not be read as an image.')
+  return img.resize({ width: 64, height: 64, quality: 'best' }).toPNG()
+}
+
 const FOLDERS: FolderKind[] = ['library', 'dataRoot', 'logs']
 const str = (v: unknown): string => String(v)
 
@@ -119,6 +137,20 @@ export function registerIpc({
     servers.setSimple(str(id), (patch ?? {}) as Partial<SimpleProperties>)
   )
   handle(IPC.serversSetRaw, (id, text) => servers.setRaw(str(id), str(text)))
+  handle(IPC.serversSetProperties, (id, values) => {
+    const clean: Record<string, string> = {}
+    for (const [k, v] of Object.entries((values ?? {}) as Record<string, unknown>)) clean[k] = String(v)
+    return servers.setProperties(str(id), clean)
+  })
+  handle(IPC.serversIcon, (id) => servers.icon(str(id)))
+  handle(IPC.serversSetIcon, (id, path) => {
+    if (path !== null && (typeof path !== 'string' || !isAbsolute(path))) throw new Error('Pick an image file.')
+    return servers.setIcon(str(id), path === null ? null : iconPng(path))
+  })
+  handle(IPC.serversPickIcon, async (id) => {
+    const file = await pickIconFile()
+    return file ? servers.setIcon(str(id), iconPng(file)) : null
+  })
   handle(IPC.serversUpdate, (id, patch) => servers.update(str(id), (patch ?? {}) as ServerConfigPatch))
   handle(IPC.serversRemove, (id) => servers.remove(str(id)))
   handle(IPC.serversOpenFolder, (id) => servers.openFolder(str(id)))
@@ -174,6 +206,10 @@ export function registerIpc({
     const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
     return res.canceled ? null : (res.filePaths[0] ?? null)
   })
+  handle(IPC.importsPickIcon, async () => {
+    const file = await pickIconFile()
+    return file ? { dataUrl: `data:image/png;base64,${iconPng(file).toString('base64')}` } : null
+  })
   handle(IPC.importsAnalyze, (path) => imports.analyze(str(path)))
   handle(IPC.importsRun, (req) => imports.run(req as ImportRequest))
   handle(IPC.importsDiscard, (id) => imports.discard(str(id)))
@@ -195,6 +231,7 @@ export function registerIpc({
     const p = (patch ?? {}) as Record<string, unknown>
     const clean: Partial<BackupSchedule> = {}
     if (p.intervalMinutes === null || typeof p.intervalMinutes === 'number') clean.intervalMinutes = p.intervalMinutes
+    if (typeof p.onEmpty === 'boolean') clean.onEmpty = p.onEmpty
     if (typeof p.onStop === 'boolean') clean.onStop = p.onStop
     if (typeof p.keep === 'number') clean.keep = p.keep
     if (p.location === null || (typeof p.location === 'string' && isAbsolute(p.location))) clean.location = p.location
@@ -223,7 +260,9 @@ export function registerIpc({
   })
   backups.on('changed', (id) => broadcast(IPC.backupsChanged, id))
 
-  handle(IPC.worldsCreate, (id, name, seed) => backups.newWorld(str(id), str(name), seed == null ? '' : str(seed)))
+  handle(IPC.worldsCreate, (id, name, seed, options) =>
+    backups.newWorld(str(id), str(name), seed == null ? '' : str(seed), (options ?? {}) as NewWorldOptions)
+  )
   handle(IPC.worldsExport, async (id, slot) => {
     const serverId = str(id)
     const world = (await servers.worlds(serverId)).find((w) => w.slot === str(slot))

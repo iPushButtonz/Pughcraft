@@ -4,6 +4,8 @@ export type BackupKind = 'auto' | 'manual' | 'safety'
 export interface BackupSchedule {
   /** Minutes between automatic backups while people play; null turns them off. */
   intervalMinutes: number | null
+  /** Back up as soon as the last player leaves. */
+  onEmpty: boolean
   /** Back up when the server stops (if anyone played since the last backup). */
   onStop: boolean
   /** How many automatic backups to keep. Manual and protected ones don't count. */
@@ -14,6 +16,7 @@ export interface BackupSchedule {
 
 export const DEFAULT_BACKUP_SCHEDULE: BackupSchedule = {
   intervalMinutes: 15,
+  onEmpty: true,
   onStop: true,
   keep: 10,
   location: null

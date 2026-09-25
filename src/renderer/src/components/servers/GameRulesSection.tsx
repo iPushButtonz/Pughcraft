@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import {
   GAME_RULE_CATEGORIES,
   GAME_RULES_BY_ID,
+  describeGameRule,
   type GameRuleCategory,
   type GameRuleState,
   type GameRulesView
@@ -44,7 +45,6 @@ function RuleRow({ rule, onSet }: { rule: GameRuleState; onSet: (v: boolean | nu
   const def = GAME_RULES_BY_ID[rule.id]
   const value = rule.value ?? def.default
   const isNormal = value === def.default
-  const describe = def.type === 'bool' ? (value ? def.on : def.off) : def.on
   const normalText = def.type === 'bool' ? (def.default ? g.on : g.off) : String(def.default)
   return (
     <div className="flex items-center justify-between gap-4 py-3">
@@ -53,7 +53,7 @@ function RuleRow({ rule, onSet }: { rule: GameRuleState; onSet: (v: boolean | nu
           {def.title}
           {rule.pending && <span className="rounded bg-warning/20 px-1.5 py-0.5 text-xs font-normal">{g.pending}</span>}
         </p>
-        <p className="text-sm text-muted-foreground">{describe}</p>
+        <p className="text-xs text-muted-foreground">{describeGameRule(def, value)}</p>
         {!isNormal && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             {g.normal(normalText)}
@@ -75,7 +75,7 @@ function RuleRow({ rule, onSet }: { rule: GameRuleState; onSet: (v: boolean | nu
   )
 }
 
-/** Every game rule the world's Minecraft version has, grouped, each with what on and off mean. */
+/** Every game rule the world's Minecraft version has, grouped, each saying what its current value does. */
 export function GameRulesSection({ server }: { server: ServerSummary }) {
   const id = server.config.id
   const [view, setView] = useState<GameRulesView | null>(null)
@@ -103,7 +103,6 @@ export function GameRulesSection({ server }: { server: ServerSummary }) {
     <div className="flex items-end justify-between gap-4">
       <div className="space-y-1">
         <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{g.title}</h2>
-        <p className="text-sm text-muted-foreground">{g.hint}</p>
       </div>
       {view && view.rules.length > 0 && (
         <Button

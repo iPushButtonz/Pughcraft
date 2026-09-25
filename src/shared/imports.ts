@@ -64,6 +64,13 @@ export interface ImportRequest {
   /** Instances: which saved world to bring along, if any. */
   worldFolder: string | null
   acceptEula: boolean
+  /** Optional 64x64 PNG (data URL) saved as the server's icon. */
+  iconDataUrl?: string | null
+}
+
+/** A picked server icon, already resized to 64x64. */
+export interface PickedIcon {
+  dataUrl: string
 }
 
 export type Launcher = 'official' | 'prism' | 'curseforge' | 'modrinth'
@@ -79,6 +86,17 @@ export interface FoundItem {
   mcVersion: string | null
   loader: string | null
   lastPlayed: string | null
+}
+
+/** Extra settings for a brand-new world, like Minecraft's "Create New World" screen. */
+export interface NewWorldOptions {
+  levelType?: string
+  generatorSettings?: string
+  generateStructures?: boolean
+  gamemode?: string
+  difficulty?: string
+  hardcore?: boolean
+  maxWorldSize?: number
 }
 
 export interface WorldInfo {

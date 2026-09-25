@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import { join } from 'node:path'
 import { BrowserWindow, dialog } from 'electron'
 import type { BackupKind, BackupSchedule, BackupsView, RestoreMode } from '@shared/backups'
+import type { NewWorldOptions } from '@shared/imports'
 import type { ServerStatus, ServerSummary } from '@shared/servers'
 import type { ServerManager } from '../servers/manager'
 import type { TaskContext, TaskManager } from '../tasks'
@@ -27,6 +28,7 @@ export class BackupManager extends EventEmitter<{ changed: [serverId: string] }>
   /** Someone was online since the last backup, so there's something worth saving. */
   private readonly played = new Map<string, boolean>()
   private readonly lastStatus = new Map<string, ServerStatus>()
+  private readonly lastPlayers = new Map<string, number>()
   private readonly jobs = new Map<string, Promise<unknown>>()
   /** Servers whose files are being replaced right now; starting them must wait. */
   private readonly restoring = new Set<string>()
@@ -121,7 +123,17 @@ export class BackupManager extends EventEmitter<{ changed: [serverId: string] }>
 
   private onServerChanged(s: ServerSummary): void {
     const id = s.config.id
+    const before = this.lastPlayers.get(id) ?? 0
+    this.lastPlayers.set(id, s.players.length)
     if (s.players.length > 0) this.played.set(id, true)
+    // The last player just left: save right away instead of waiting for the server to stop.
+    if (
+      s.status === 'running' && before > 0 && s.players.length === 0 &&
+      this.deps.servers.backupSchedule(id).onEmpty && this.played.get(id) && !this.jobs.has(id)
+    ) {
+      this.played.set(id, false)
+      this.backup(id, 'auto', 'Everyone left')
+    }
     const prev = this.lastStatus.get(id)
     this.lastStatus.set(id, s.status)
     if (prev === s.status) return
@@ -166,6 +178,7 @@ export class BackupManager extends EventEmitter<{ changed: [serverId: string] }>
       next.intervalMinutes =
         patch.intervalMinutes === null ? null : Math.min(24 * 60, Math.max(5, Math.round(patch.intervalMinutes)))
     }
+    if (patch.onEmpty !== undefined) next.onEmpty = !!patch.onEmpty
     if (patch.onStop !== undefined) next.onStop = !!patch.onStop
     if (patch.keep !== undefined) next.keep = Math.min(100, Math.max(1, Math.round(patch.keep)))
 
@@ -238,12 +251,12 @@ export class BackupManager extends EventEmitter<{ changed: [serverId: string] }>
   }
 
   /** A new world parks the current one, so a safety backup comes first too. */
-  newWorld(id: string, name: string, seed: string): Promise<void> {
+  newWorld(id: string, name: string, seed: string, options: NewWorldOptions = {}): Promise<void> {
     if (this.deps.servers.isLive(id)) throw new Error('Stop the server before making a new world.')
     return this.task(id, 'Making a new world', async (ctx) => {
       ctx.step('Taking a safety backup first')
       await this.snapshot(id, 'safety', 'Before making a new world', ctx)
-      await this.deps.servers.newWorld(id, name, seed)
+      await this.deps.servers.newWorld(id, name, seed, options)
     }).result
   }
 

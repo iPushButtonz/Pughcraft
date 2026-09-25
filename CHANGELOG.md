@@ -2,7 +2,25 @@
 
 All notable changes to Pughcraft. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.2.1] - 2026-09-25
+
+### Added
+- Server icon in Settings, under Message of the day: drop an image on it or click to choose one, and it's resized to 64×64. There is also a Remove button.
+- Every setting and game rule has a one-line description that follows its value. Switches say what on or off does (for example "Phantoms spawn" / "Phantoms don't spawn"). Numbers and dropdowns describe the value picked (for example "Idle players are never kicked" at 0).
+
+## [0.2.0] - 2026-09-25
+
+### Changed
+- Settings tab now has a real control for every `server.properties` setting (switches, numbers, dropdowns, text), grouped and searchable. The World detail presets and explanatory text are gone; view and simulation distance are exact numbers.
+- Players moved into the Settings tab (there is no separate Players tab).
+- Game rules no longer show on/off blurbs; every rule is a plain control with "Use normal".
+- The header no longer says "My Servers", and the sidebar lists your servers with their status instead of one lone tab.
+- Backups can run as soon as the last player leaves (on by default), on top of the timer and stop backups.
+- New world (Worlds tab) offers world type, generator settings, structures, game mode, difficulty, hardcore and max world size, as well as name and seed.
+- Import: the settings wizard (name and icon, version and type, memory, summary) opens as soon as you drop a file while it is checked in the background, with a Skip button. The dialog no longer repeats "Checking…"; progress shows once in the task toast as "Installing…".
+- Import screen is now titled "Settings" and says whether previous settings were found.
+- Memory slider explains each choice (too low, below average, best for most, and so on) and works past 32 GB on PCs with enough RAM.
+- Imported servers can get a custom icon (`server-icon.png`).
 
 ### Added
 - App skeleton: Electron + React window with My Servers and Settings pages.
