@@ -1,5 +1,6 @@
 import { BrowserWindow, nativeTheme } from 'electron'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { APP_NAME } from '@shared/brand'
 import { isAllowedExternalUrl, openExternalSafe } from './external'
 import appIconPath from '../../resources/icon.png?asset'
@@ -10,8 +11,23 @@ const devServerUrl = process.env.ELECTRON_RENDERER_URL
 export function isTrustedUrl(url: string | undefined): boolean {
   if (!url) return false
   if (devServerUrl) return url.startsWith(devServerUrl)
-  return url.startsWith('file://')
+  // Only our own page: a dropped file (also file://) must never count as the app.
+  return sameFileUrl(url.split(/[?#]/)[0], rendererFileUrl())
 }
+
+/** Chromium and Node may differ in escaping and drive-letter case; compare what they point at. */
+function sameFileUrl(a: string, b: string): boolean {
+  const norm = (u: string): string => {
+    try {
+      return decodeURIComponent(u).replace(/\\/g, '/').toLowerCase()
+    } catch {
+      return u.toLowerCase()
+    }
+  }
+  return norm(a) === norm(b)
+}
+
+const rendererFileUrl = (): string => pathToFileURL(join(__dirname, '../renderer/index.html')).href
 
 export function createMainWindow(opts: { show: boolean }): BrowserWindow {
   const win = new BrowserWindow({

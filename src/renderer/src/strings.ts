@@ -38,7 +38,7 @@ export const t = {
   imports: {
     button: 'Import',
     title: 'Import a world, server or modpack',
-    dropHere: 'Drop a world, server folder or modpack here',
+    dropHere: 'Drop a world, server folder or modpack anywhere in this window',
     dropHint: 'Worlds (folders, .zip, Realm backups), server folders, server packs and Modrinth packs (.mrpack).',
     dropOverlay: 'Drop to import',
     chooseFile: 'Choose a file…',

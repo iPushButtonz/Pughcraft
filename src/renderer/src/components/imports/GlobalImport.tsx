@@ -3,6 +3,7 @@ import { Upload } from 'lucide-react'
 import { create } from 'zustand'
 import { ImportDialog } from '@/components/imports/ImportDialog'
 import { api } from '@/lib/api'
+import { dropTarget } from '@/lib/dropTarget'
 import { t } from '@/strings'
 
 interface ImportUi {
@@ -37,8 +38,10 @@ export function GlobalImport() {
     const hasFiles = (e: DragEvent): boolean => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files')
     // Elements marked data-drop-zone (like the server icon) take their own drops.
     const inZone = (e: DragEvent): boolean => e.target instanceof Element && !!e.target.closest('[data-drop-zone]')
+    // The whole window takes drops: an open Import screen gets them, otherwise one opens.
+    const accepting = (): boolean => !!dropTarget() || !useImportUi.getState().open
     const enter = (e: DragEvent): void => {
-      if (!hasFiles(e) || useImportUi.getState().open) return
+      if (!hasFiles(e) || !accepting()) return
       depth++
       setDragging(!inZone(e))
     }
@@ -52,10 +55,14 @@ export function GlobalImport() {
     const drop = (e: DragEvent): void => {
       depth = 0
       setDragging(false)
-      if (!hasFiles(e) || useImportUi.getState().open || inZone(e)) return
+      if (!hasFiles(e) || inZone(e)) return
+      // Always handled here, so a dropped file can never load into the window itself.
       e.preventDefault()
-      const file = e.dataTransfer?.files[0]
-      if (file) show(api.imports.pathForFile(file))
+      const paths = [...(e.dataTransfer?.files ?? [])].map((f) => api.imports.pathForFile(f)).filter(Boolean)
+      if (!paths.length) return
+      const target = dropTarget()
+      if (target) target(paths)
+      else if (!useImportUi.getState().open) show(paths[0])
     }
     window.addEventListener('dragenter', enter)
     window.addEventListener('dragleave', leave)

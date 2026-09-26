@@ -2,6 +2,12 @@
 
 All notable changes to Pughcraft. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.2] - 2026-09-26
+
+### Fixed
+- Drag and drop works anywhere in the window, including while the Import screen is open (before, only the small box on that screen took drops). Dropping a new file there starts over with that file.
+- A file dropped where nothing takes it can no longer open inside the app window. Only the app's own page is trusted.
+
 ## [0.2.1] - 2026-09-25
 
 ### Added

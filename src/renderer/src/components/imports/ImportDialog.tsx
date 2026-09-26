@@ -24,6 +24,7 @@ import { useIsAdvanced, useSettings } from '@/stores/settings'
 import { useServers } from '@/stores/servers'
 import { useNav } from '@/stores/nav'
 import { api } from '@/lib/api'
+import { setDropTarget } from '@/lib/dropTarget'
 import { errorMessage } from '@/lib/errors'
 import { BEST_MAX_MB, BEST_MIN_MB, memoryTier } from '@/lib/memoryAdvice'
 import { timeAgo } from '@/lib/time'
@@ -57,7 +58,6 @@ export function ImportDialog({
   const [phase, setPhase] = useState<'choose' | 'review'>('choose')
   const [found, setFound] = useState<FoundItem[] | null>(null)
   const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null)
-  const [dragging, setDragging] = useState(false)
   // Bumped whenever an analysis is abandoned, so a late result is thrown away.
   const attempt = useRef(0)
 
@@ -78,6 +78,14 @@ export function ImportDialog({
       }
     )
   }
+
+  // While this screen is open, a file dropped anywhere on the window is checked here.
+  const analyzeRef = useRef(analyze)
+  analyzeRef.current = analyze
+  useEffect(() => {
+    if (!open) return
+    return setDropTarget((paths) => analyzeRef.current(paths[0]))
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -107,23 +115,7 @@ export function ImportDialog({
 
         {phase === 'choose' && (
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
-            <div
-              onDragOver={(e) => {
-                e.preventDefault()
-                setDragging(true)
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault()
-                setDragging(false)
-                const file = e.dataTransfer.files[0]
-                if (file) void analyze(api.imports.pathForFile(file))
-              }}
-              className={cn(
-                'flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors',
-                dragging ? 'border-primary bg-accent' : 'border-border'
-              )}
-            >
+            <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-border p-8 text-center">
               <Upload className="size-8 text-muted-foreground" />
               <p className="font-medium">{m.dropHere}</p>
               <p className="max-w-md text-xs text-muted-foreground">{m.dropHint}</p>
